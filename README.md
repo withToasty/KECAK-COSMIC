@@ -25,6 +25,9 @@ KECAK-COSMIC は、ケチャのように複数の反復する声・リズムが�
 - [Specification / 実装仕様](docs/specification.md)
 - [Kecak Rhythm Model / ケチャのリズム設計](docs/kecak-rhythm-model.md)
 - [Cue Model / 合図とキメ](docs/cue-model.md)
+- [Beat Gesture Model / 1拍内の発声モデル](docs/beat-gesture-model.md)
+- [M0.1 Implementation Plan / 実装手順](docs/implementation-plan.md)
+- [M0.1 Beat Event Fixture / scheduler正解表](docs/m0-beat-event-fixture.md)
 - [Decision Log / M0確定事項](docs/decision-log.md)
 - [M0 Pulse Fixture / 16 pulse 正解表](docs/m0-pulse-fixture.md)
 

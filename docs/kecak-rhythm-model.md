@@ -1,7 +1,7 @@
 # KECAK-COSMIC — Kecak Rhythm Model
 
-Status: Source-grounded prototype model  
-Purpose: KECAK LOOP の最初の8パートを、実際のケチャのインターロッキング構造から抽象化して定義する。
+Status: Source-grounded rhythm-source model  
+Purpose: KECAK LOOP の最初の8パートの音楽素材を定義する。実装時間モデルは [beat-gesture-model.md](./beat-gesture-model.md) を正とする。
 
 > この文書の8パートは「伝統的ケチャには8人の固定パートがある」という意味ではない。
 > 実際のケチャは大人数の合唱で、同じパートを複数人が担当し、地域・グループによって使用パターンも変わる。
@@ -27,95 +27,95 @@ Purpose: KECAK LOOP の最初の8パートを、実際のケチャのインタ�
 
 ## 2. KECAK-COSMIC の時間モデル
 
-### 2.1 Global Pulse
-
-アプリ全体には、小節で区切られない1本の pulse が永遠に流れる。
+M0.1では、音楽上の大きな単位を `globalBeat` とし、1beat内部を12 subticksで表現する。
 
 ```
-0 1 2 3 4 5 6 7 8 9 10 11 ... ∞
+beat subtick:
+0 1 2 3 4 5 6 7 8 9 10 11
 ```
 
-STOP するまで終わらない。
-
-UI上では「4/4」「1小節目」のような西洋音楽的な小節表示を基本にしない。
-
-### 2.2 最小時間単位
-
-M0 の内部時間単位は、
-
-**1 klempung beat = 4 internal pulses**
-
-とする。
-
-理由:
-
-- cak telu が1 beatを4つの等間隔 pulse に分ける資料がある
-- besik の beat / off-beat も同じ4分割グリッド上に置ける
-- 後から細かいパターンを追加しやすい
-
-したがって内部 pulse を `q` とすると、
+この文書に残っている旧4マス表記:
 
 ```
-klempung beat:
 q0 q1 q2 q3
-^     ^
-on    half
 ```
 
-となる。
+は、資料整理・migration用の簡略表記として扱い、実装では次へ写像する。
 
+```
+q0 -> subtick 0
+q1 -> subtick 3
+q2 -> subtick 6
+q3 -> subtick 9
+```
+
+したがって、旧 `0010` は:
+
+```
+offsetSubtick = 6
+```
+
+の短い発声eventとして表現できる。
+
+さらにM0.1では、同じ1beat内に複数eventを置けるため:
+
+- 1拍伸ばす cak
+- double cak
+- triple cak
+- offset double
+
+などを0/1列ではなくBeatCellとして直接記述する。
+
+詳細は [Beat Gesture Model](./beat-gesture-model.md)。
 ---
 
 ## 3. 円のルール
 
 各声部は、自分専用の円形シーケンサーを持つ。ただし **すべての軌道は同じ中心を共有する同心円** とする。
 
-例: 8 pulse pattern
+M0.1では:
 
 ```
-       0
-    7     1
-  6         2
-  5         3
-       4
+1 large sector = 1 beat
+sector内のmark = vocal event
 ```
 
-global pulse が1つ進むたびに、各声部の現在位置も1 node進む。node 0 は12時方向、進行方向は時計回り。
+とする。
 
-現在位置が hit node に到達した瞬間だけ発声する。
+- short event = point
+- long event = arc
+- double / triple = 同じsector内に複数point
+- current marker = beat内部を連続移動
 
-つまり、
+つまり:
 
 ```
-global pulse
+global beat
       ↓
-orbital position
+orbit beat sector
       ↓
-pattern node
+intra-beat VocalEvent
       ↓
-voice
+voice / sample
 ```
 
-という構造。
-
-円は装飾ではなく、時間そのものを可視化する。
-
+円は装飾ではなく、周期とbeat内部の発声配置を可視化する。
 ---
 
 ## 4. M0の最初の8パート
 
 最初の8パートは以下とする。
 
-| Entry | Part | Role | Voice | Pattern length |
+| Entry | Part | Role | Voice | Cycle length |
 |---:|---|---|---|---:|
-| 1 | Juru Klempung | beat keeper | pung | 4 |
-| 2 | Cak Besik — Polos | on-beat | cak | 4 |
-| 3 | Cak Besik — Sangsih | off-beat | cak | 4 |
-| 4 | Cak Telu — Polos | 3-part interlock | cak | 8 |
-| 5 | Cak Telu — Sanglot | in-between | cak | 8 |
-| 6 | Cak Telu — Sangsih | off-beat | cak | 8 |
-| 7 | Cak Lima — Polos | 2-part interlock | cak | 16 |
-| 8 | Cak Lima — Sangsih | complementary part | cak | 16 |
+| 1 | Juru Klempung | beat keeper | pung | 1 beat |
+| 2 | Cak Besik — Polos | on-beat | cak | 1 beat |
+| 3 | Cak Besik — Sangsih | off-beat | cak | 1 beat |
+| 4 | Cak Telu — Polos | 3-part interlock | cak | 2 beats |
+| 5 | Cak Telu — Sanglot | in-between | cak | 2 beats |
+| 6 | Cak Telu — Sangsih | off-beat | cak | 2 beats |
+| 7 | Cak Lima — Polos | 2-part interlock | cak | 4 beats |
+| 8 | Cak Lima — Sangsih | complementary part | cak | 4 beats |
 
 この8つで、
 
@@ -130,10 +130,13 @@ voice
 
 ## 5. パターン定義
 
-表記:
+以下の0/1列は **legacy transcription notation** として残す。
 
-- `1` = 発声
+- `1` = その旧quarter-grid位置に短い発声
 - `0` = 休符
+
+実装時には4桁ごとに1beatへまとめ、q0/q1/q2/q3をsubtick 0/3/6/9へ変換する。
+新しい sustained / double / triple gesture はこの0/1表記へ戻さず、BeatCellで直接定義する。
 
 ### 5.1 Juru Klempung
 
@@ -145,7 +148,7 @@ beat keeper。
 1000
 ```
 
-4 internal pulses ごとに:
+1 beatごとに:
 
 ```
 PUNG . . .
@@ -157,7 +160,7 @@ PUNG . . .
 
 ### 5.2 Cak Besik — Polos
 
-1 klempung beat の on-beat。
+1 beat の on-beat。
 
 ```
 1000
@@ -193,7 +196,7 @@ Combined CAK .   CAK .
 
 ### 5.4 Cak Telu — Polos
 
-cak telu は2 klempung beats = 8 internal pulses を1周期として扱う。
+cak telu のlegacy notationは2 beats = 8 quarter-grid positionsを1周期として扱う。
 
 ```
 00100101
@@ -237,7 +240,7 @@ CAK . . CAK . CAK . .
 
 ### 5.7 Cak Lima — Polos
 
-4 klempung beats = 16 internal pulses。
+4 beats = 16 legacy quarter-grid positions。
 
 M0では Stepputat の転写を4分割 pulse grid に写して以下を使用する。
 
@@ -339,95 +342,66 @@ cak telu の3声 interlock が完成する。
 
 - 人物が明るくなる
 - その人物の orbit が現れる
-- pattern nodes が表示される
-- 次の global pulse から演奏へ加わる
+- beat sectors と vocal-event marks が表示される
+- 次の global beat boundary から演奏へ加わる
 
-途中参加で global pulse 自体はリセットしない。
+途中参加で global beat 自体はリセットしない。
 
 ---
 
 ## 8. 円の見え方
 
-各声部の orbit の node 数は patternLength と一致させる。Entry 1 を最内周、Entry 8 を最外周とする。
+各声部のorbitは patternのbeat数で区切る。
 
-- 4 pulse part → 4 node ring
-- 8 pulse part → 8 node ring
-- 16 pulse part → 16 node ring
+- 1 beat cycle → 1 sector
+- 2 beat cycle → 2 sectors
+- 4 beat cycle → 4 sectors
 
-hit node は塗りつぶす。
-
-current position は別の moving marker で示す。
+sector内部にはBeatCellのVocalEventを配置する。
 
 ```
-○ = rest
-● = cak
+• = short event
+━ = sustained event
 ◎ = current position
 ```
 
-current position が ● と重なった瞬間に発声し、人物も pulse animation する。
+double / tripleは同じsector内に複数の • を置く。
 
+current markerがevent位置を通過した瞬間に発声し、人物もpulse animationする。
 ---
 
 ## 9. データモデル
 
+実装データモデルは [beat-gesture-model.md](./beat-gesture-model.md) と [specification.md](./specification.md) を正とする。
+
+中心型:
+
 ```ts
-type Voice = 'cak' | 'pung'
-
-type KecakPart =
-  | 'klempung'
-  | 'besik-polos'
-  | 'besik-sangsih'
-  | 'telu-polos'
-  | 'telu-sanglot'
-  | 'telu-sangsih'
-  | 'lima-polos'
-  | 'lima-sangsih'
-
-type Hit = {
-  on: boolean
+type VocalEvent = {
+  offsetSubtick: number
+  durationSubticks: number
+  sampleId: SampleId
   accent: number
 }
 
-type Performer = {
-  id: string
-  entry: number
-  name: string
-  kecakPart: KecakPart
-  voice: Voice
-  pattern: readonly Hit[]
-  rotation: number
-  joined: boolean
-  muted: boolean
-  volume: number
-  groupSize: number
-}
+type BeatCell = readonly VocalEvent[]
 
-type Session = {
-  tempoBpm: number // klempung beat BPM
-  pendingTempoBpm: number | null
-  globalPulse: number
-  playing: boolean
-  performers: Performer[]
+type VoicePattern = {
+  beats: readonly BeatCell[]
 }
 ```
 
-現在位置:
+周期位置:
 
 ```ts
-const position =
-  (globalPulse + performer.rotation) %
-  performer.pattern.length
+const beatIndex =
+  (globalBeat + performer.rotationBeats) %
+  performer.pattern.beats.length
 ```
 
-発声:
+発声eventは、そのBeatCell内の全VocalEventをAudioContext timeへscheduleする。
 
-```ts
-const shouldPlay =
-  performer.joined &&
-  !performer.muted &&
-  performer.pattern[position].on
-```
-
+旧 `Hit.on` / `globalPulse` はmigration sourceとしてのみ扱い、新規engine APIでは使用しない。
 ---
 
 ## 10. Phase の扱い
@@ -439,8 +413,9 @@ M0では数値入力の `Phase` は廃止する。
 内部的には:
 
 ```ts
-position =
-  (globalPulse + rotation) % pattern.length
+beatIndex =
+  (globalBeat + rotationBeats) %
+  pattern.beats.length
 ```
 
 とする。
@@ -513,9 +488,9 @@ M0の8パートを「唯一の正しいケチャ」として扱わない。
 
 ただし内部概念としては、各 Performer は「1人の個人」ではなく **1つの声部グループ** として扱う。
 
-M0では `groupSize = 1` とするが、将来は同じパートを複数人が担う状態を表現できるようにする。
+M0.1では `EnsembleProfile` を持ち、試聴時には同じパートを複数人へ展開できるようにする。決定論テスト時だけ size=1 / spread=0 とする。
 
-M0のPerformer状態は `joined` と `muted` で表現する。発声点は `Hit.on` とし、Performer状態と発声点の概念を分離する。
+M0.1のPerformer状態は `joined` と `muted` で表現する。発声内容は `BeatCell / VocalEvent` とし、Performer状態と発声eventの概念を分離する。
 
 これにより、人数差・音圧・わずかなタイミング差・複数テイクの声を後から追加しても、ケチャの集団性を壊さず拡張できる。
 

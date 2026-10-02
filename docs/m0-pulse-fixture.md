@@ -1,5 +1,8 @@
 # M0 Pulse Fixture
 
+> **Legacy status:** M0.1の実装fixtureは [m0-beat-event-fixture.md](./m0-beat-event-fixture.md) を正とする。  
+> この文書は旧4-pulse patternからBeatCellへ移行した際に、onset列が変わっていないことを確認する migration fixture としてのみ残す。
+
 Status: Required test fixture for M0  
 Assumptions:
 
