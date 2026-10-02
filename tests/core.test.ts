@@ -252,7 +252,9 @@ describe('CUE (docs/cue-model.md)', () => {
     const b = beat() // beat 2: the call begins
     expect(b.beat).toBe(2)
     expect(core.getSession().cue).toBe('call')
-    expect(ids(b.events)).toEqual(['klempung', 'klempung'])
+    expect(ids(b.events)).toEqual(['klempung', 'klempung', 'klempung'])
+    // the call is audible on a phone speaker: a sustained cak sits on top of the pung
+    expect(b.events.map((e) => e.sampleId)).toContain('cak-long')
   })
 
   it('call: JK only; response: every joined voice in unison on the off-beat; then groove returns', () => {

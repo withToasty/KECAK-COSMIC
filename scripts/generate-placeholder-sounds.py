@@ -44,17 +44,21 @@ def cak_short(seed, f1, f2, decay):
 
 
 def cak_long(seed, f0, vib):
-    """Noisy attack, then a held vowel-like tone (harmonics shaped by 2 formants), long tail."""
+    """Sustained "caaak": a hard consonant at t=0, then a held vowel at full level.
+
+    No fade-in: the sound starts the instant the sample starts. The consonant is a
+    bright noise burst plus a click-like tone; the soft clip keeps the vowel
+    audible after peak normalisation.
+    """
     rng = random.Random(seed)
     dur = 1.6
     n = int(RATE * dur)
     out, lp, phase = [], 0.0, 0.0
     for i in range(n):
         t = i / RATE
-        # consonant burst (first ~35 ms)
-        burst = math.exp(-t * 60) * rng.uniform(-1, 1)
-        lp += 0.5 * (burst - lp)
-        # held vowel: harmonics weighted around formants ~800 / 1300 Hz
+        burst = math.exp(-t * 45) * rng.uniform(-1, 1)
+        lp += 0.65 * (burst - lp)
+        click = math.exp(-t * 90) * math.sin(2 * math.pi * 1700 * t)
         f = f0 * (1 + 0.012 * math.sin(2 * math.pi * vib * t))
         phase += 2 * math.pi * f / RATE
         vowel = 0.0
@@ -62,8 +66,9 @@ def cak_long(seed, f0, vib):
             hf = f0 * h
             w = math.exp(-((hf - 800) / 350) ** 2) + 0.6 * math.exp(-((hf - 1300) / 400) ** 2)
             vowel += w * math.sin(h * phase) / h
-        env = min(1.0, t * 90) * (1.0 if t < 1.1 else math.exp(-(t - 1.1) * 7))
-        out.append(lp * 1.2 + vowel * 0.9 * env)
+        env = 1.0 if t < 1.1 else math.exp(-(t - 1.1) * 7)
+        x = lp * 1.6 + click * 0.8 + vowel * 1.1 * env
+        out.append(math.tanh(1.4 * x))
     return out
 
 
@@ -75,7 +80,10 @@ def pung():
         freq = 150 + 90 * math.exp(-t * 40)
         phase += 2 * math.pi * freq / RATE
         env = math.exp(-t * 11) * min(1.0, t * 500)
-        out.append((math.sin(phase) + 0.3 * math.sin(2 * phase)) * env)
+        # upper partials so the pung still reads on phone speakers (no real low end)
+        partials = 0.45 * math.sin(2 * math.pi * 320 * t) * math.exp(-t * 18) \
+            + 0.3 * math.sin(2 * math.pi * 680 * t) * math.exp(-t * 30)
+        out.append((math.sin(phase) + 0.3 * math.sin(2 * phase)) * env + partials)
     return out
 
 

@@ -6,13 +6,20 @@ import type { BeatCell } from '../domain/rhythm'
 const ev = (offsetSubtick: number, durationSubticks: number, accent: number) =>
   ({ offsetSubtick, durationSubticks, accent })
 
-/** Juru Klempung alone: pung on beat, on the half, then on the next beat. */
+/**
+ * Juru Klempung alone, but clearly audible on a phone speaker: a sustained
+ * "caaak" call with a pung under it, then a pung and a short pick-up.
+ */
 export const CUE_CALL: readonly BeatCell[] = [
   [
-    { ...ev(0, 3, 0.9), sampleId: 'pung' },
+    { ...ev(0, 12, 1), sampleId: 'cak-long' },
+    { ...ev(0, 3, 1), sampleId: 'pung' },
     { ...ev(6, 3, 0.9), sampleId: 'pung' },
   ],
-  [{ ...ev(0, 3, 0.9), sampleId: 'pung' }],
+  [
+    { ...ev(0, 3, 1), sampleId: 'pung' },
+    { ...ev(6, 2, 1), sampleId: 'cak-short' },
+  ],
 ]
 
 /**

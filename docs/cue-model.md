@@ -16,12 +16,12 @@ Status: M0.1 (pulled forward from M1 "dynamics cue / transition cue")
 
 | rel beat | phase | 内容 |
 |---:|---|---|
-| 0–1 | call | Juru Klempung(beat keeper)だけが掛け声を打つ。他声部は沈黙する |
+| 0–1 | call | Juru Klempung(beat keeper)だけが掛け声をかける。他声部は沈黙する。pung だけだと小さいスピーカーで聞こえないため、長音の cak(チャーー)を重ねる |
 | 2–3 | response | joined かつ unmuted の**全声部**が、自分の sample(pung / cak-short)で同じ subtick に一斉に打つ(キメ)。**裏拍(subtick 6)から入る** |
 | 4〜 | 通常 | 通常の pattern 評価へ戻る。response 最後の発声が次の拍頭への pickup になる |
 
 ```
-call     beat0: pung @0, @6    beat1: pung @0
+call     beat0: cak-long @0 + pung @0, @6    beat1: pung @0, cak-short @6
 response beat2: @6             beat3: @0, @6, @9     (全声部・offsetSubtick)
 ```
 

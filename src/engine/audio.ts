@@ -1,6 +1,6 @@
 import * as Tone from 'tone'
 import { SAMPLE_FILES } from '../audio/sampleRegistry'
-import type { SampleId } from '../domain/rhythm'
+import type { Performer, SampleId } from '../domain/rhythm'
 import {
   EngineCore,
   type EventSink,
@@ -76,6 +76,17 @@ class ToneSink implements EventSink {
     return bank
   }
 
+  /** Create every player the performers (and the cue) can use, ahead of time. */
+  warm(performers: readonly Performer[]): void {
+    for (const p of performers) {
+      const ids = new Set<SampleId>(['pung', 'cak-short', 'cak-long'])
+      for (const beat of p.pattern.beats) for (const e of beat) ids.add(e.sampleId)
+      for (let m = 0; m < Math.max(1, p.ensemble.size); m++) {
+        for (const id of ids) this.bank(p.id, m, id)
+      }
+    }
+  }
+
   trigger({ event, memberIndex, time, gain }: MemberTrigger): void {
     const bank = this.bank(event.performerId, memberIndex, event.sampleId)
     if (!bank) return
@@ -112,6 +123,7 @@ export class KecakEngine {
       // Must run inside the user gesture that triggered START.
       await Tone.start()
       await this.sink.load()
+      this.sink.warm(this.core.getSession().performers)
       if (this.core.getSession().playing) return
 
       const transport = Tone.getTransport()
