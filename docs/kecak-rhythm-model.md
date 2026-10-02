@@ -407,7 +407,6 @@ type Session = {
   pendingTempoBpm: number | null
   globalPulse: number
   playing: boolean
-  joinedCount: number
   performers: Performer[]
 }
 ```
