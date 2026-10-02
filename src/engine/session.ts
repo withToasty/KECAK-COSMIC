@@ -1,5 +1,11 @@
 import { KECAK_PRESETS, type KecakPreset } from '../data/kecakPresets'
 import {
+  CUE_CALL,
+  CUE_CALL_ACCENT,
+  CUE_RESPONSE,
+  CUE_RESPONSE_ACCENT,
+} from '../data/cuePhrase'
+import {
   TEMPO_DEFAULT,
   TEMPO_MAX,
   TEMPO_MIN,
@@ -37,6 +43,7 @@ export function createSession(
     pendingTempoBpm: null,
     globalPulse: 0,
     playing: false,
+    cue: 'idle',
     performers: presets.map(createPerformer),
   }
 }
@@ -70,4 +77,30 @@ export function hitsAtPulse(
 
 export function joinedCount(session: Session): number {
   return session.performers.filter((p) => p.joined).length
+}
+
+/** One full cue cycle: call + response (16 pulses). */
+export const CUE_LENGTH = CUE_CALL.length + CUE_RESPONSE.length
+
+/** Hits for pulse `rel` (0-based) of a running cue. */
+export function cueHitsAt(
+  performers: readonly Performer[],
+  rel: number,
+  globalPulse: number,
+): PulseHit[] {
+  const inCall = rel < CUE_CALL.length
+  const phrase = inCall ? CUE_CALL : CUE_RESPONSE
+  const idx = inCall ? rel : rel - CUE_CALL.length
+  if (phrase[idx] !== '1') return []
+  const accent = inCall ? CUE_CALL_ACCENT : CUE_RESPONSE_ACCENT
+  return performers
+    .filter(
+      (p) =>
+        p.joined && !p.muted && (!inCall || p.role === 'beat-keeper'),
+    )
+    .map((performer) => ({
+      performer,
+      position: patternPosition(performer, globalPulse),
+      hit: { on: true, accent },
+    }))
 }

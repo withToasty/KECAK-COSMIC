@@ -24,6 +24,7 @@ KECAK-COSMIC は、ケチャのように複数の反復する声・リズムが�
 - [Concept / 思想](docs/concept.md)
 - [Specification / 実装仕様](docs/specification.md)
 - [Kecak Rhythm Model / ケチャのリズム設計](docs/kecak-rhythm-model.md)
+- [Cue Model / 合図とキメ](docs/cue-model.md)
 - [Decision Log / M0確定事項](docs/decision-log.md)
 - [M0 Pulse Fixture / 16 pulse 正解表](docs/m0-pulse-fixture.md)
 

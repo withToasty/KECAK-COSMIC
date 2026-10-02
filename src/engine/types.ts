@@ -34,12 +34,15 @@ export type Performer = {
   groupSize: number
 }
 
+export type CuePhase = 'idle' | 'armed' | 'call' | 'response'
+
 export type Session = {
   /** Klempung-beat BPM. Internal pulses run at 4x this rate. */
   tempoBpm: number
   pendingTempoBpm: number | null
   globalPulse: number
   playing: boolean
+  cue: CuePhase
   performers: Performer[]
 }
 

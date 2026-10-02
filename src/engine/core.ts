@@ -3,13 +3,17 @@
 // all timing rules unit-testable.
 
 import {
+  CUE_LENGTH,
   clampTempo,
   createSession,
+  cueHitsAt,
   hitsAtPulse,
   joinedCount,
 } from './session'
+import { CUE_CALL } from '../data/cuePhrase'
 import {
   PULSES_PER_BEAT,
+  type CuePhase,
   type Hit,
   type Performer,
   type Session,
@@ -41,6 +45,8 @@ export class EngineCore {
   private pulse = 0
   private queue: Command[] = []
   private pendingJoins = 0
+  private cueArmed = false
+  private cueStart: number | null = null
   private timeline: { pulse: number; time: number }[] = []
   private visual: PulseEvent[] = []
   private listeners = new Set<() => void>()
@@ -71,6 +77,7 @@ export class EngineCore {
 
   markStarted(): void {
     this.pulse = 0
+    this.clearCue()
     this.timeline = []
     this.visual = []
     this.session = { ...this.session, playing: true }
@@ -79,11 +86,13 @@ export class EngineCore {
 
   /** STOP: return to pulse 0, keep joined / muted / volume / tempo. */
   markStopped(): void {
+    this.clearCue()
     this.applyQueue()
     const pending = this.session.pendingTempoBpm
     this.session = {
       ...this.session,
       playing: false,
+      cue: 'idle',
       tempoBpm: pending ?? this.session.tempoBpm,
       pendingTempoBpm: null,
     }
@@ -98,10 +107,16 @@ export class EngineCore {
     this.session = createSession()
     this.queue = []
     this.pendingJoins = 0
+    this.clearCue()
     this.pulse = 0
     this.timeline = []
     this.visual = []
     this.commit()
+  }
+
+  private clearCue(): void {
+    this.cueArmed = false
+    this.cueStart = null
   }
 
   // --- commands ------------------------------------------------------------
@@ -152,6 +167,15 @@ export class EngineCore {
       // Latest request wins; applied at the next klempung-beat boundary.
       this.session = { ...this.session, pendingTempoBpm: next }
     }
+    this.commit()
+  }
+
+  /** Arm a cue (starts at the next 16-pulse boundary); toggles while armed. */
+  toggleCue(): void {
+    if (!this.session.playing) return
+    if (this.cueStart !== null) return // a cue is already running
+    this.cueArmed = !this.cueArmed
+    this.session = { ...this.session, cue: this.cueArmed ? 'armed' : 'idle' }
     this.commit()
   }
 
@@ -207,7 +231,26 @@ export class EngineCore {
       changed = true
     }
 
-    const hits = hitsAtPulse(this.session.performers, pulse)
+    if (this.cueStart !== null && pulse - this.cueStart >= CUE_LENGTH) {
+      this.cueStart = null
+    }
+    if (this.cueArmed && this.cueStart === null && pulse % CUE_LENGTH === 0) {
+      this.cueArmed = false
+      this.cueStart = pulse
+    }
+    let phase: CuePhase = this.cueArmed ? 'armed' : 'idle'
+    let hits
+    if (this.cueStart !== null) {
+      const rel = pulse - this.cueStart
+      phase = rel < CUE_CALL.length ? 'call' : 'response'
+      hits = cueHitsAt(this.session.performers, rel, pulse)
+    } else {
+      hits = hitsAtPulse(this.session.performers, pulse)
+    }
+    if (phase !== this.session.cue) {
+      this.session = { ...this.session, cue: phase }
+      changed = true
+    }
     for (const { performer, hit } of hits) {
       this.sink.play(performer, hit, time)
     }

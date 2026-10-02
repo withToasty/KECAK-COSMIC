@@ -255,3 +255,103 @@ describe('visual clock', () => {
     expect(core.positionAt(123)).toBe(0)
   })
 })
+
+describe('CUE (docs/cue-model.md)', () => {
+  const ids = (r: { played: { id: string }[] }) => r.played.map((x) => x.id).sort()
+
+  /** Run pulses until `n` pulses have fired; returns per-pulse results. */
+  function run(pulse: ReturnType<typeof setup>['pulse'], n: number) {
+    return Array.from({ length: n }, () => pulse())
+  }
+
+  it('only works while playing', () => {
+    const { core } = setup()
+    core.toggleCue()
+    expect(core.getSession().cue).toBe('idle')
+  })
+
+  it('arms immediately but starts at the next 16-pulse boundary', () => {
+    const { core, pulse, joinAll } = setup()
+    joinAll()
+    core.markStarted()
+    run(pulse, 5) // pulses 0..4 done
+    core.toggleCue()
+    expect(core.getSession().cue).toBe('armed')
+    // pulses 5..15 are the normal groove (fixture rows)
+    for (let t = 5; t < 16; t++) {
+      const r = pulse()
+      expect(r.ev.pulse).toBe(t)
+      expect(r.played).toHaveLength(FIXTURE[t].length)
+    }
+    expect(core.getSession().cue).toBe('armed')
+  })
+
+  it('call: only Juru Klempung; response: all joined voices in unison; then groove returns', () => {
+    const { core, pulse, joinAll } = setup()
+    joinAll()
+    core.markStarted()
+    run(pulse, 4)
+    core.toggleCue()
+    run(pulse, 12) // up to pulse 15
+    const cue = run(pulse, 16) // pulses 16..31
+    // call 10101000 -> JK at rel 0, 2, 4
+    cue.slice(0, 8).forEach((r, rel) => {
+      expect(ids(r)).toEqual('10101000'[rel] === '1' ? ['klempung'] : [])
+    })
+    expect(core.getSession().cue).toBe('response')
+    // response 10101011 -> all 8 voices at rel 8, 10, 12, 14, 15
+    cue.slice(8).forEach((r, i) => {
+      expect(ids(r)).toHaveLength('10101011'[i] === '1' ? 8 : 0)
+    })
+    // pulse 32 onwards: the groove returns (fixture row 0)
+    const back = pulse()
+    expect(back.ev.pulse).toBe(32)
+    expect(back.played).toHaveLength(FIXTURE[0].length)
+    expect(core.getSession().cue).toBe('idle')
+  })
+
+  it('schedules the unison response at one identical audio time', () => {
+    const { core, pulse, joinAll } = setup()
+    joinAll()
+    core.markStarted()
+    core.toggleCue()
+    const cue = run(pulse, 16)
+    for (const r of cue.slice(8)) for (const h of r.played) expect(h.time).toBe(r.ev.time)
+  })
+
+  it('muted voices stay silent during a cue', () => {
+    const { core, pulse, joinAll } = setup()
+    joinAll()
+    core.setMuted('lima-sangsih', true)
+    core.markStarted()
+    run(pulse, 1) // pulse 0 done
+    core.toggleCue()
+    run(pulse, 15)
+    const cue = run(pulse, 16)
+    expect(cue[8].played.map((x) => x.id)).not.toContain('lima-sangsih')
+    expect(cue[8].played).toHaveLength(7)
+  })
+
+  it('can be cancelled while armed and is cleared by STOP', () => {
+    const { core, pulse } = setup()
+    core.markStarted()
+    run(pulse, 3)
+    core.toggleCue()
+    core.toggleCue()
+    expect(core.getSession().cue).toBe('idle')
+    core.toggleCue()
+    core.markStopped()
+    expect(core.getSession().cue).toBe('idle')
+    core.markStarted()
+    run(pulse, 17)
+    expect(core.getSession().cue).toBe('idle')
+  })
+
+  it('never resets the global pulse', () => {
+    const { core, pulse } = setup()
+    core.markStarted()
+    core.toggleCue()
+    const all = run(pulse, 40)
+    expect(all.map((r) => r.ev.pulse)).toEqual(Array.from({ length: 40 }, (_, i) => i))
+  })
+})

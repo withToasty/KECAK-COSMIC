@@ -60,3 +60,8 @@ Implementation should follow:
 - [Concept](./concept.md)
 
 If these documents conflict, the order above is the precedence for M0 implementation details.
+
+## Cue (M0.5)
+
+- A manual CUE button adds a call-and-response section on top of the infinite pulse: arm now, start at the next 16-pulse boundary, call by Juru Klempung (8 pulses), unison response by all joined unmuted voices (8 pulses), then return to the groove. See [Cue Model](./cue-model.md).
+- Cue never resets or pauses the global pulse. Auto-arranged songs are deferred.
