@@ -1,10 +1,10 @@
 # KECAK-COSMIC — Specification
 
-Version: v0.2  
-Status: Draft / Prototype specification
+Version: v0.3  
+Status: M0 implementation baseline
 
-この文書は「何を実装するか」を定義する。  
-思想・背景は [concept.md](./concept.md)、ケチャのリズム設計は [kecak-rhythm-model.md](./kecak-rhythm-model.md) を参照。
+この文書は M0 の実装仕様を定義する。  
+思想・背景は [concept.md](./concept.md)、ケチャのリズム設計は [kecak-rhythm-model.md](./kecak-rhythm-model.md)、確定事項は [decision-log.md](./decision-log.md) を参照。
 
 ---
 
@@ -12,9 +12,9 @@ Status: Draft / Prototype specification
 
 KECAK-COSMIC は、複数の反復パターンが1本の共通 pulse の上で回り続け、互いに噛み合うことで音楽を作る Web アプリ。
 
-M0では、人間の演奏者を円形に配置し、実際のケチャの interlocking / kotekan をもとにした8つのパートを一人ずつ参加させる。
+M0では、実際のケチャの interlocking / kotekan をもとにした8つの声部を、一人ずつ参加させる。
 
-将来の COSMIC MODE では、この「円」「周期」「現在位置」という同じUI文法を、月・惑星・人工衛星の軌道周期へ接続する。
+将来の COSMIC MODE では、同じ「中心・軌道・周期・現在位置」というUI文法を、月・惑星・人工衛星の軌道周期へ接続する。
 
 ---
 
@@ -28,9 +28,9 @@ M0では、人間の演奏者を円形に配置し、実際のケチャの inter
 0 1 2 3 4 5 6 7 8 9 10 ... ∞
 ```
 
-START から STOP まで1本の pulse が永遠に進む。
+START から STOP まで1本の pulse が進み続ける。
 
-4/4、1小節目、2小節目、といった表示はM0では使わない。
+UI上では 4/4、1小節目、2小節目、といった小節概念をM0では使わない。
 
 ### 2.2 Internal Resolution
 
@@ -42,133 +42,15 @@ M0では、
 
 とする。
 
-これを全パート共通の最小時間グリッドにする。
+internal pulse が全声部共通の最小時間グリッド。
 
----
-
-## 3. M0の8パート
-
-M0 preset は以下。
-
-| Entry | Part | Voice | Pattern length |
-|---:|---|---|---:|
-| 1 | Juru Klempung | pung | 4 |
-| 2 | Cak Besik — Polos | cak | 4 |
-| 3 | Cak Besik — Sangsih | cak | 4 |
-| 4 | Cak Telu — Polos | cak | 8 |
-| 5 | Cak Telu — Sanglot | cak | 8 |
-| 6 | Cak Telu — Sangsih | cak | 8 |
-| 7 | Cak Lima — Polos | cak | 16 |
-| 8 | Cak Lima — Sangsih | cak | 16 |
-
-実際の pattern 配列は [kecak-rhythm-model.md](./kecak-rhythm-model.md) を正とする。
-
-これは「伝統的ケチャに固定8パートがある」という意味ではなく、実際のケチャ構造をM0用に縮約した preset。
-
----
-
-## 4. 初回体験
-
-8つの席は最初から円形に配置する。
-
-ただし開始時に active なのは Entry 1 のみ。
-
-未参加者は暗いシルエットで表示する。
-
-ユーザーが次の人物をクリック、または `JOIN NEXT VOICE` を押すたびに、固定順で1人ずつ参加する。
-
-```
-1. Juru Klempung
-2. Besik Polos
-3. Besik Sangsih
-4. Telu Polos
-5. Telu Sanglot
-6. Telu Sangsih
-7. Lima Polos
-8. Lima Sangsih
-```
-
-参加しても global pulse は止めない・リセットしない。
-
-新しい演奏者は現在の global pulse 上の正しい位相位置から演奏へ加わる。
-
----
-
-## 5. 円形UI
-
-### 5.1 全体
-
-8人は中央を向いて円形に座る。
-
-中央:
-
-- START / STOP
-- Pulse tempo
-- JOIN NEXT VOICE
-
-### 5.2 各演奏者の orbit
-
-各演奏者は小さな円形シーケンサーを持つ。
-
-node 数 = `pattern.length`
-
-例:
-
-- 4 pulse → 4 nodes
-- 8 pulse → 8 nodes
-- 16 pulse → 16 nodes
-
-表記:
-
-- rest node = ○
-- active node = ●
-- current position = moving marker
-
-current marker が ● に到達した瞬間に発声。
-
-### 5.3 円の意味
-
-円は装飾ではなく、周期を可視化したもの。
-
-M0では「リズムの軌道」。
-
-COSMIC MODEでは「天体・衛星の軌道」へそのまま意味を拡張する。
-
----
-
-## 6. START / STOP
-
-### START
-
-- AudioContext を開始
-- globalPulse を進める
-- active performer の pattern を評価
-- 該当 node で発声
-- UI current marker を同期
-
-### STOP
-
-M0では:
-
-- transport 停止
-- globalPulse = 0
-- 全 performer の表示位置を初期位置へ戻す
-
-後のバージョンでは pause と reset を分けてもよい。
-
----
-
-## 7. Tempo
+### 2.3 Tempo
 
 UI名は `Tempo`。
 
-**BPM は klempung beat の速度を表す。internal pulse の速度ではない。**
+BPM は **klempung beat の速度** を表す。internal pulse の速度ではない。
 
-```
-1 klempung beat = 4 internal pulses
-```
-
-したがって Tempo = 120 BPM のとき:
+Tempo = 120 BPM のとき:
 
 ```
 klempung beat = 120 / min
@@ -188,30 +70,257 @@ internal pulse interval = 125 ms
 60–220 BPM
 ```
 
-スケジューラは内部的に `tempoBpm * 4` の pulse rate を使う。
+---
 
-M0では全パートが同じ global pulse を共有する。
+## 3. M0の8声部
+
+M0 preset:
+
+| Entry | Part | Role | Voice | Pattern length |
+|---:|---|---|---|---:|
+| 1 | Juru Klempung | beat keeper | pung | 4 |
+| 2 | Cak Besik — Polos | polos | cak | 4 |
+| 3 | Cak Besik — Sangsih | sangsih | cak | 4 |
+| 4 | Cak Telu — Polos | polos | cak | 8 |
+| 5 | Cak Telu — Sanglot | sanglot | cak | 8 |
+| 6 | Cak Telu — Sangsih | sangsih | cak | 8 |
+| 7 | Cak Lima — Polos | polos | cak | 16 |
+| 8 | Cak Lima — Sangsih | sangsih | cak | 16 |
+
+pattern 配列は [kecak-rhythm-model.md](./kecak-rhythm-model.md) を正とする。
+
+これは「伝統的ケチャには固定8パートがある」という意味ではない。M0用の source-based abstraction とする。
 
 ---
 
-## 8. 発声
+## 4. Performer の意味
 
-M0で必要な voice:
+画面上では各声部を代表する人物を1人表示する。
 
-- `cak`
-- `pung`
+ただし内部的な Performer は **1人の個人ではなく1つの声部グループ**。
 
-最初から `cek` / `tak` / `low` など創作音色を増やさない。
+M0:
 
-まずケチャ由来の構造を確認する。
+```
+groupSize = 1
+```
 
-### 音源優先順位
+将来は同じ声部に複数人を持たせ、音圧・微小な揺らぎ・複数テイクへ拡張できるようにする。
 
-1. 実際の短い人声サンプル
-2. 録音が未準備なら仮サンプル
-3. 最終手段として Web Audio API 生成音
+---
 
-音声ファイルは差し替え可能にする。
+## 5. 初回体験
+
+8つの席は最初から円の外周に存在する。
+
+開始時:
+
+- Entry 1 の Juru Klempung のみ `joined = true`
+- Entry 2〜8 は `joined = false`
+- 未参加者は暗いシルエット
+- globalPulse = 0
+- playing = false
+
+参加順は固定:
+
+```
+1. Juru Klempung
+2. Besik Polos
+3. Besik Sangsih
+4. Telu Polos
+5. Telu Sanglot
+6. Telu Sangsih
+7. Lima Polos
+8. Lima Sangsih
+```
+
+M0では順番を飛ばして参加させない。
+
+次に参加可能な人物だけを操作可能にする。
+
+一度 joined になった声部は M0 では離脱しない。無音にしたい場合は Mute を使う。
+
+---
+
+## 6. 中央同心軌道UI
+
+### 6.1 基本構造
+
+全声部の周期は **同じ中心を共有する**。
+
+各声部に1本ずつ専用の同心軌道を割り当てる。
+
+```
+Entry 1 = 最内周
+Entry 2
+Entry 3
+...
+Entry 8 = 最外周
+```
+
+8人の代表者は軌道群のさらに外側に円形に座り、各人物と担当軌道の対応が分かるラベルまたはガイドを持つ。
+
+小さな円を各人物の周囲に8個作る方式は採用しない。
+
+### 6.2 軌道 node
+
+各軌道の node 数は `pattern.length` と一致。
+
+- 4 pulse → 4 nodes
+- 8 pulse → 8 nodes
+- 16 pulse → 16 nodes
+
+表記:
+
+- rest node = ○
+- active node = ●
+- current marker = 現在位置
+
+### 6.3 向き
+
+すべての軌道で:
+
+- node 0 = 12時方向
+- 進行方向 = 時計回り
+- rotation = 0 が初期状態
+
+### 6.4 marker animation
+
+音の判定自体は discrete な internal pulse で行う。
+
+表示上の current marker は、node間を `requestAnimationFrame` で連続的に補間して移動させる。
+
+**音声クロックが主、アニメーションは追従。**
+
+current marker が active node の時刻を通過した瞬間に発声し、人物と軌道も短く反応する。
+
+### 6.5 未参加声部
+
+未参加の人物は暗いシルエット。
+
+未参加軌道は薄いガイドとして表示してよいが、moving marker は表示しない。
+
+JOINした瞬間から、その声部の軌道・node・markerを有効表示する。
+
+---
+
+## 7. Transport
+
+M0では `START` / `STOP` / `RESET` の3操作を持つ。
+
+### 7.1 START
+
+停止状態で START を押すと:
+
+1. ユーザー操作内で AudioContext / Tone.js を unlock
+2. globalPulse = 0 から開始
+3. **pulse 0 をSTART時刻として即時評価**
+4. pulse 0 が active な声部はその開始時刻に発声
+5. 以降 internal pulse を進める
+
+つまり最初の PUNG は「1 pulse待ってから」ではなく、STARTと同時に鳴る。
+
+START中は START ボタンを無効化する。
+
+### 7.2 STOP
+
+STOP:
+
+- audio transport を停止
+- globalPulse = 0
+- marker を node 0 に戻す
+- joined 状態を維持
+- muted 状態を維持
+- volume を維持
+- tempo を維持
+
+STOP は「演奏を止めて頭出しする」操作。
+
+### 7.3 RESET
+
+RESET:
+
+- transport を停止
+- globalPulse = 0
+- tempoBpm = 120
+- Entry 1 のみ joined
+- Entry 2〜8 は unjoined
+- 全声部 muted = false
+- volume を preset default へ戻す
+- rotation = 0
+- marker = node 0
+
+RESET は初回体験へ完全に戻す操作。
+
+### 7.4 Reload
+
+M0では状態保存をしない。
+
+ページ reload は RESET と同等。
+
+PAUSE は M0 では実装しない。
+
+---
+
+## 8. JOIN / MUTE / VOLUME / TEMPO
+
+### 8.1 JOIN
+
+停止中:
+
+- 次の声部を即座に joined にする
+
+再生中:
+
+- JOIN要求後の **次の internal pulse boundary** から joined を有効にする
+- globalPulse はリセットしない
+- pattern の先頭を待たない
+
+有効化時:
+
+```ts
+position =
+  globalPulse % pattern.length
+```
+
+現在の世界の位置へそのまま入る。
+
+### 8.2 MUTE
+
+`joined = true` の声部だけ Mute 可能。
+
+停止中は即時反映。
+
+再生中は次の internal pulse boundary から反映。
+
+`muted = true` でも orbit marker は動き続ける。
+
+### 8.3 Volume
+
+範囲:
+
+```
+0.0–1.0
+```
+
+初期値は preset ごとに定義可能。M0では原則 1.0。
+
+再生中の変更は短い gain ramp を使いクリックノイズを避ける。
+
+### 8.4 Tempo変更
+
+停止中:
+
+- 即時反映
+
+再生中:
+
+- UI変更を pending tempo として保持
+- **次の klempung beat boundary** から適用
+
+つまり globalPulse が次に `% 4 === 0` になる境界で切り替える。
+
+連続操作された場合は最新の pending tempo のみ採用。
 
 ---
 
@@ -219,140 +328,240 @@ M0で必要な voice:
 
 ```ts
 const position =
-  globalPulse % performer.pattern.length
-
-const shouldPlay =
-  performer.active &&
-  performer.pattern[position] === 1
-```
-
-発声タイミングは UI の `setInterval` に依存させない。
-
-Audio scheduler を時間の正とする。
-
----
-
-## 10. Phase
-
-M0では数値入力の Phase はUIに出さない。
-
-将来、orbit ring 自体を回転させることで位相を変える。
-
-内部:
-
-```ts
-const position =
   (globalPulse + performer.rotation) %
   performer.pattern.length
+
+const hit =
+  performer.pattern[position]
+
+const shouldPlay =
+  performer.joined &&
+  !performer.muted &&
+  hit.active
 ```
 
-M0の preset では `rotation = 0`。
+M0では全 performer の `rotation = 0`。
+
+Phase を数値入力するUIは出さない。
+
+将来は orbit ring を回転させる操作で rotation を変更する。
 
 ---
 
-## 11. Performer 操作
+## 10. Hit モデル
 
-M0でユーザーができること:
+M0から将来の強弱に対応できる形にする。
 
-- 参加させる
-- active / mute
-- volume 調整
-- performer をクリックして pattern 名を見る
-
-M0では pattern 自体を編集しない。
-
-理由:
-
-まず「本物のケチャ由来の8パートを重ねた時に、どんな体験になるか」を検証する。
-
-自由編集はM1。
-
----
-
-## 12. Performer Detail
-
-演奏者をクリックしたら小さな panel を表示。
-
-表示内容:
-
-- Part name
-- Role: polos / sangsih / sanglot / beat keeper
-- Pattern length
-- Voice
-- Volume
-- Mute
-- pattern ring の拡大表示
-
-説明例:
-
-```
-CAK TELU — SANGLOT
-
-8 pulses
-in-between voice
-
-Polos と Sangsih の間を埋める
-3声 interlock の中央パート
+```ts
+type Hit = {
+  active: boolean
+  accent: number
+}
 ```
 
----
+`accent`:
 
-## 13. 視覚フィードバック
+- 0.0–1.0
+- M0 preset は原則 1.0
+- 発音時の velocity / gain multiplier として利用可能
 
-発声時:
-
-- current node を一瞬強調
-- performer 本体を軽く pulse
-- orbit ring を一瞬発光
-
-同時発声が起きた場合:
-
-- 該当する全 performer を同時に反応させる
-- 中央円もわずかに pulse させる
-
-「複数周期が重なった瞬間」が視覚でも分かるようにする。
+pattern文書では可読性のため 0/1 表記を使い、コードロード時に Hit 配列へ変換してよい。
 
 ---
 
-## 14. データモデル
+## 11. Audio Engine
+
+### 11.1 固定技術
+
+M0:
+
+- Vite
+- React
+- TypeScript
+- Tone.js
+- SVG
+- CSS
+
+Canvas / WebGL はM0では使わない。
+
+### 11.2 時間の正
+
+**Tone.js / Web Audio の audio clock が唯一の時間の正。**
+
+React state、DOM animation、`setInterval` は発音タイミングの基準にしない。
+
+実装の基本:
+
+```
+Tone.Transport / audio clock
+        ↓
+internal pulse callback
+        ↓
+all performer patterns evaluate
+        ↓
+same-pulse hits scheduled at SAME audio time
+        ↓
+visual event emitted
+        ↓
+React / requestAnimationFrame follows
+```
+
+### 11.3 Tone.js mapping
+
+klempung beat を quarter-note 相当として扱い、
+
+```
+Tone.Transport.bpm.value = tempoBpm
+internal pulse = "16n"
+```
+
+とする。
+
+内部では小節表示を利用しない。
+
+### 11.4 Same-pulse scheduling
+
+同一pulseで複数声部が発声する場合、全サンプルを **同一の callback time** に schedule する。
+
+for-loop の実行時刻差を音声時刻へ反映させない。
+
+### 11.5 Background / hidden tab
+
+M0では、再生中にページが hidden になったら自動的に STOP と同じ状態へ移行する。
+
+- joined / muted / volume / tempo は維持
+- globalPulse = 0
+- 復帰後はユーザーが START し直す
+
+バックグラウンド中の時間を追跡して catch-up 再生しない。
+
+---
+
+## 12. Audio Samples
+
+M0で必要な voice:
+
+- `cak`
+- `pung`
+
+### 12.1 Sample player
+
+最初から複数sample対応の形にする。
+
+```ts
+samples.cak = ['cak-01.wav']
+samples.pung = ['pung-01.wav']
+```
+
+将来:
+
+```ts
+samples.cak = [
+  'cak-01.wav',
+  'cak-02.wav',
+  'cak-03.wav'
+]
+```
+
+として round-robin / variation へ拡張可能にする。
+
+### 12.2 Rights
+
+Public repository に含める音源は以下のいずれかだけ:
+
+- 自作録音
+- 明示的に再利用可能なライセンス
+- 自前生成した placeholder
+
+ネット上から出所不明の音源をコピーしない。
+
+音源を同梱する場合は `public/sounds/README.md` に出典・作者・ライセンスを記録する。
+
+M0開始時に適切な声素材がなければ、仮音源で実装し後から差し替える。
+
+### 12.3 Master chain
+
+同時発声による clipping を避ける。
+
+推奨初期構成:
+
+```
+voice players
+   ↓
+performer gains
+   ↓
+master gain (-12 dB headroom)
+   ↓
+limiter (-1 dB ceiling)
+   ↓
+destination
+```
+
+数値は試聴で調整可能だが、master headroom と safety limiter 自体はM0から持つ。
+
+---
+
+## 13. Preset Data
+
+ケチャ由来 pattern を component / scheduler に直書きしない。
+
+```
+src/data/kecakPresets.ts
+```
+
+へ集約する。
+
+各presetには最低限:
+
+- id
+- displayName
+- role
+- voice
+- pattern
+- defaultVolume
+- sourceNote
+- transcriptionStatus
+
+を持たせる。
+
+特に Cak Lima は後から資料照合による修正を行えるよう、engine logic と完全に分離する。
+
+---
+
+## 14. Data Model
 
 ```ts
 type Voice = 'cak' | 'pung'
 
-type KecakPart =
-  | 'klempung'
-  | 'besik-polos'
-  | 'besik-sangsih'
-  | 'telu-polos'
-  | 'telu-sanglot'
-  | 'telu-sangsih'
-  | 'lima-polos'
-  | 'lima-sangsih'
+type Role =
+  | 'beat-keeper'
+  | 'polos'
+  | 'sangsih'
+  | 'sanglot'
 
 type Hit = {
   active: boolean
-  accent: number // M0 default = 1.0
+  accent: number
 }
 
 type Performer = {
   id: string
+  entry: number
   name: string
-  kecakPart: KecakPart
-  role: 'beat-keeper' | 'polos' | 'sangsih' | 'sanglot'
+  kecakPart: string
+  role: Role
   voice: Voice
   pattern: readonly Hit[]
   rotation: number
-  active: boolean
   joined: boolean
+  muted: boolean
   volume: number
-
-  // UI上は代表者1人を表示するが、内部概念は「声部グループ」。
-  // M0では常に1。将来は複数人化・微小な揺らぎに使う。
   groupSize: number
 }
 
 type Session = {
-  tempoBpm: number // klempung beat BPM
+  tempoBpm: number
+  pendingTempoBpm: number | null
   globalPulse: number
   playing: boolean
   joinedCount: number
@@ -360,246 +569,124 @@ type Session = {
 }
 ```
 
----
+`active` という状態は使わない。
 
-## 15. 初期状態
-
-```ts
-{
-  tempoBpm: 120,
-  globalPulse: 0,
-  playing: false,
-  joinedCount: 1
-}
-```
-
-Entry 1 の Juru Klempung のみ joined。
-
-START 後:
+状態の意味は:
 
 ```
-pung . . . pung . . . pung ...
-```
+joined = false
+  → まだ参加していない
 
-ここから一人ずつ増える。
+joined = true, muted = false
+  → 参加して発声可能
+
+joined = true, muted = true
+  → 参加済みだが無音
+```
 
 ---
 
-## 16. 音響エンジン
+## 15. Visual Feedback
 
-推奨:
+発声時:
 
-- Tone.js
-- Web Audio API
+- active node を短く強調
+- performer avatar を軽く pulse
+- 担当 orbit を短く強調
 
-### 16.1 時間の正
+同じpulseで2声以上が発声した場合:
 
-**Audio clock が唯一の時間の正。React state は表示専用。**
+- 該当する全声部を同時反応
+- 中央も軽く pulse
 
-禁止:
-
-- `setInterval` を発音タイミングの基準にする
-- React render / state update を発音トリガーにする
-
-同一 pulse で複数声部が鳴る場合、すべて同一 AudioContext time に schedule する。
-
-### 16.2 途中参加
-
-新しい声部は JOIN した時点で global pulse をリセットしない。
-
-次の scheduled pulse から、
-
-```ts
-position = globalPulse % pattern.length
-```
-
-の現在位置で参加する。
-
-「その人の1周目を待つ」処理はしない。
-
-### 16.3 Browser audio unlock
-
-最初の START ユーザー操作内で AudioContext / Tone.start() を unlock する。
-
-### 16.4 Background / visibility
-
-ページが非表示になった場合、復帰後に wall-clock の経過分を追いかけて高速再生しない。
-
-AudioContext / transport の実際の状態を正とし、必要なら安全に再同期する。
-
-### 16.5 Sample architecture
-
-M0は1 sample / voice でもよいが、sample player は将来の round-robin を前提に配列を受け取れる構造にする。
-
-### 16.6 Pattern source isolation
-
-ケチャ由来 pattern は component や scheduler に直書きしない。
-
-`src/data/kecakPresets.ts` に集約し、各 preset に source / note を持たせる。
-
-Cak Lima は特に後から転写を修正しやすくする。
-
-### 16.7 UI density
-
-16-node ring はスマートフォン通常表示で読みにくい可能性がある。
-
-通常時は orbit と current marker を優先し、performer detail を開いたときに拡大 ring を表示する。
-
-### 16.1 時間の正
-
-**Audio clock が唯一の時間の正。React state は表示専用。**
-
-禁止:
-
-- `setInterval` を発音タイミングの基準にする
-- React render / state update を発音トリガーにする
-
-同一 pulse で複数声部が鳴る場合、すべて同一 AudioContext time に schedule する。
-
-### 16.2 途中参加
-
-新しい声部は JOIN した時点で global pulse をリセットしない。
-
-次の scheduled pulse から、
-
-```ts
-position = globalPulse % pattern.length
-```
-
-の現在位置で参加する。
-
-「その人の1周目を待つ」処理はしない。
-
-### 16.3 Browser audio unlock
-
-モバイルブラウザを含め、最初の START ユーザー操作内で AudioContext / Tone.start() を unlock する。
-
-### 16.4 Background / visibility
-
-M0ではページが非表示になった場合、復帰後に wall-clock の経過分を追いかけて高速再生しない。
-
-AudioContext / transport の実際の状態を正とし、必要なら安全に再同期する。
-
-### 16.5 Sample architecture
-
-M0は1 sample / voice でもよいが、sample player は将来の round-robin を前提に配列を受け取れる構造にする。
-
-例:
-
-```ts
-samples.cak = ['cak-01.wav']
-```
-
-M1以降:
-
-```ts
-samples.cak = ['cak-01.wav', 'cak-02.wav', 'cak-03.wav']
-```
-
-### 16.6 Pattern source isolation
-
-ケチャ由来 pattern は component や scheduler に直書きしない。
-
-`src/data/kecakPresets.ts` に集約し、各 preset に source / note を持たせる。
-
-Cak Lima は特に後から転写を修正しやすくする。
-
-### 16.7 UI density
-
-16-node ring はスマートフォン通常表示で読みにくい可能性がある。
-
-通常時は orbit と current marker を優先し、node は簡略表示してよい。
-performer detail を開いたときに拡大 ring を表示する。
-
-構造:
-
-```
-audio clock
-   ↓
-global pulse scheduler
-   ↓
-performer pattern evaluation
-   ↓
-sample trigger
-   ↓
-visual event
-```
-
-音が主、UIは追従。
-
-重要:
-
-- long-running drift を極力避ける
-- 画面描画負荷で音がずれない
-- タブ復帰時の状態を壊さない
-- 同時発声を正確に揃える
+interlocking の「重なった瞬間」を視覚化する。
 
 ---
 
-## 17. デザイン
+## 16. Mobile
 
-M0の目的は「宇宙っぽい画面」を作ることではない。
-
-優先順位:
-
-1. interlocking が聴こえる
-2. 一人ずつ加わることで複雑さが立ち上がる
-3. 円を見ると pattern が理解できる
-4. 操作が直感的
-5. 見た目
-
-背景は暗色。
-
-人物・node・orbit を主役にする。
-
-星空、星雲、派手なパーティクルは後回し。
-
----
-
-## 18. モバイル
-
-スマートフォン縦画面を基準の1つとする。
+スマートフォン縦画面も対象。
 
 条件:
 
-- 8人の円が1画面内に収まる
-- current marker が見える
-- 人物タップ領域は十分確保
-- panel を開いても中央 transport を完全には隠さない
+- 8つの同心軌道と人物の対応を判別できる
+- tap target を十分確保
+- 16-node ring は通常表示で簡略化してよい
+- performer detail を開いたときに対象orbitを拡大表示
+- detail panel が transport を完全に隠さない
+
+---
+
+## 17. M0の反復性
+
+pattern length は 4 / 8 / 16。
+
+したがって全8声部の状態は最小公倍数である **16 internal pulses ごとに完全に同じ配置へ戻る**。
+
+これはM0の仕様。
+
+M0の目的は長大な非反復音楽ではなく、Kecak interlocking を短い周期で理解・体験すること。
+
+長周期・異周期による長時間の関係変化は COSMIC MODE で扱う。
+
+---
+
+## 18. Test Fixture
+
+M0の音楽仕様そのものを自動テスト可能にする。
+
+全8声部 joined / unmuted / rotation 0 の状態で、pulse 0〜15 に「どの声部が鳴るか」の正解表を固定する。
+
+正解表は [m0-pulse-fixture.md](./m0-pulse-fixture.md) を参照。
+
+最低限テストする:
+
+- pulse 0 の発声
+- 16 pulse の完全反復
+- START時の off-by-one
+- STOP → START
+- JOIN途中参加
+- MUTE
+- tempo境界変更
+- same-pulse scheduling
 
 ---
 
 ## 19. M0 完了条件
 
-以下がすべて成立すればM0完了。
+以下が成立すればM0完了。
 
-- 1本の global pulse が安定して流れる
+- audio clock 基準の global pulse が安定して流れる
+- START時に pulse 0 が即時発声する
+- STOP / RESET が仕様通り動く
 - 8席が円形に表示される
-- 初期状態は1人のみ
-- 1人ずつ順番に参加させられる
-- 各 performer が定義済み pattern を永遠に繰り返す
-- 4 / 8 / 16 pulse の ring が正しく回る
-- active node でのみ発声する
+- 8本の同心軌道を共有中心で表示できる
+- 1人から固定順で8声部まで参加させられる
+- 各声部が定義済み pattern を繰り返す
+- 4 / 8 / 16 pulse の node が正しく動く
+- 同時発声が同一AudioContext timeで鳴る
+- Mute / Volume が動く
+- Tempo変更が beat境界で反映される
 - cak / pung が鳴る
-- 同時発声がずれない
-- 発声時に performer が視覚反応する
-- STOP で初期位置へ戻る
+- hidden tab で安全にSTOPする
+- fixture test が通る
 - スマートフォンで操作できる
 
 ---
 
 ## 20. M1 — 楽器化
 
-M0後に追加候補:
+M0後の候補:
 
-- pattern node を直接 ON / OFF
+- pattern node の直接 ON / OFF
 - ring drag による rotation / phase
-- performer 追加 / 削除
+- performer / voice-group 追加削除
 - Solo
 - preset 保存
 - URL共有
 - pattern length 変更
-- voice 差し替え
+- round-robin voice
+- groupSize > 1
 - Cak Nem
 - Cak Pitu / Ocel
 - Cak Lesung
@@ -608,15 +695,11 @@ M0後に追加候補:
 - dynamics cue
 - transition cue
 
-M1で「ケチャ再現 preset」から「ケチャの原理を使う楽器」へ広げる。
-
 ---
 
 ## 21. M2 — COSMIC MODE
 
-KECAK LOOP の円形 time model を宇宙へ置き換える。
-
-### 21.1 Cosmic performer
+KECAK LOOP の同心軌道 time model を宇宙へ接続する。
 
 ```ts
 type CosmicPerformer = {
@@ -629,7 +712,7 @@ type CosmicPerformer = {
 }
 ```
 
-### 21.2 変換
+変換:
 
 ```
 real orbital period
@@ -638,42 +721,28 @@ time compression rule
         ↓
 human-scale period
         ↓
-orbit revolution
+shared-center orbit
         ↓
 sound event
 ```
 
-### 21.3 UI
-
 KECAK LOOP:
 
 ```
-person + rhythm orbit
+voice group + rhythm orbit
 ```
 
 COSMIC MODE:
 
 ```
-celestial body + actual-looking orbit
+celestial body + orbital period
 ```
 
-基本操作は共通。
+UI文法を共通化する。
 
 ---
 
-## 22. M0の反復性
-
-M0の pattern length は 4 / 8 / 16 なので、全声部の状態は最小公倍数である **16 internal pulses ごとに完全に同じ配置へ戻る**。
-
-これは仕様とする。
-
-M0の目的は長大な非反復音楽ではなく、**Kecak interlocking の成立を短い周期で理解・体験すること**。
-
-長周期・異周期による「関係が長時間変化し続ける」体験は COSMIC MODE で扱う。
-
----
-
-## 23. M0ではやらないこと
+## 22. M0ではやらないこと
 
 - ログイン
 - DB
@@ -685,29 +754,33 @@ M0の目的は長大な非反復音楽ではなく、**Kecak interlocking の成
 - external astronomy API
 - DAW機能
 - 自由な pattern editor
-- 正確な天体軌道描画
-
-最初の検証は1つだけ。
-
-> **単純な役割を一人ずつ重ねるだけで、複雑な音楽が立ち上がる体験は面白いか。**
+- 正確な天体軌道シミュレーション
+- pause / resume
+- background playback
+- persistence
 
 ---
 
-## 24. 開発順序
+## 23. 開発順序
 
-1. Vite + React + TypeScript
-2. global pulse scheduler
-3. cak / pung sample playback
-4. 1 performer + 1 orbit ring
-5. pattern node 判定
-6. 8席の円形配置
-7. 8 preset pattern 実装
-8. JOIN NEXT VOICE
-9. 発声 animation
-10. 同時発声 visual
-11. performer detail
-12. tempo
-13. mobile
-14. M0 test
+1. Vite + React + TypeScript + Tone.js
+2. Audio unlock
+3. quarter beat + 16n internal pulse scheduler
+4. PUNG 1声のみで pulse 0 / timing test
+5. shared-center SVG orbit 1本
+6. marker continuous animation
+7. preset data layer
+8. 8声部の scheduler test
+9. 8本の同心軌道
+10. JOIN NEXT VOICE
+11. MUTE / Volume
+12. START / STOP / RESET
+13. Tempo boundary update
+14. visual hit feedback
+15. performer detail
+16. hidden-tab behavior
+17. mobile
+18. fixture tests
+19. M0 test play
 
-デザインの前に、まず音で interlocking が成立することを確認する。
+デザイン装飾より先に、音と時間モデルを完成させる。
