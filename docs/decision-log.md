@@ -98,3 +98,14 @@ See [M1 Instrument](./m1-instrument.md).
 - A third arrangement, `Stage 4`, is read from a stage explainer board photo (4 rhythm patterns on a 16-column grid plus a tambur line "Sirrr / Pung / Pung / Pung"). Details and the reading are in [Stage Board](./stage-board.md).
 - It is recorded as `transcriptionStatus: 'stage-board'` and its source note says it is not a scholarly source. It does not verify the Besik / Telu / Lima preset, which stays `needs-verification`.
 - `sir` becomes a playable sample (placeholder synthesis) and is drawn as a sustained arc. A new role `pola` labels the cak patterns whose part names are not confirmed.
+
+## M2 — COSMIC MODE
+
+See [Cosmic Model](./cosmic-model.md).
+
+- COSMIC MODE reuses the grammar of KECAK LOOP: a shared center, one orbit per voice, seats outside, a moving marker, voices that join one at a time on beat boundaries. A body sounds once per revolution (marker passes 12 o'clock).
+- One ratio-preserving compression for the whole system: the fastest body takes `fastestBeats` beats and every other period keeps its real ratio. No per-body scaling. Compression can only be changed while stopped.
+- Cosmic sound times are exact fractions of a beat; they are not quantized to the 12-subtick Kecak grid.
+- All bodies start in step (a deliberate conjunction at beat 0), which is not the real current configuration. Two bodies within 0.08 beat count as a conjunction and get a small accent.
+- Pitch is the log-rank of the period on a three-octave pentatonic scale (shorter period = higher). Voices are synthesized per kind of body; no sample is stretched.
+- Data is a static table of sidereal periods. No ephemeris, no real-time tracking, no external API. Values that could not be checked against a primary table are listed as such in the cosmic model.

@@ -3,6 +3,7 @@
 // imperatively, so React never re-renders per frame.
 
 import { engine } from './useEngine'
+import { orbitFraction } from '../cosmos/compress'
 import { CENTER, cycleAngle, pointOnCircle } from './geometry'
 
 const flash = (el: Element | null, keyframes: Keyframe[], duration: number) => {
@@ -12,7 +13,42 @@ const flash = (el: Element | null, keyframes: Keyframe[], duration: number) => {
 export function startVisualLoop(root: HTMLElement): () => void {
   let raf = 0
 
+  /** COSMIC MODE: each body travels its orbit; a sound is the pass at 12 o'clock. */
+  const cosmicFrame = () => {
+    const pos = engine.position()
+    root.querySelectorAll<SVGCircleElement>('[data-body]').forEach((el) => {
+      const period = Number(el.dataset.period)
+      const r = Number(el.dataset.r)
+      const p = pointOnCircle(CENTER, CENTER, r, orbitFraction(pos, period) * Math.PI * 2)
+      el.setAttribute('cx', p.x.toFixed(2))
+      el.setAttribute('cy', p.y.toFixed(2))
+    })
+    let together = false
+    for (const ev of engine.cosmicVisuals()) {
+      root.querySelectorAll(`[data-body="${ev.bodyId}"]`).forEach((m) =>
+        flash(m, [{ transform: 'scale(2.6)' }], 320),
+      )
+      root.querySelectorAll(`[data-avatar="${ev.bodyId}"]`).forEach((a) =>
+        flash(a, [{ transform: 'scale(1.18)' }], 220),
+      )
+      root.querySelectorAll(`[data-orbit="${ev.bodyId}"]`).forEach((o) =>
+        flash(o, [{ strokeOpacity: 1, strokeWidth: 2.6 }], 300),
+      )
+      together ||= ev.conjunction
+    }
+    if (together) {
+      root.querySelectorAll('[data-center]').forEach((c) =>
+        flash(c, [{ transform: 'scale(2)', opacity: 1 }], 400),
+      )
+    }
+  }
+
   const frame = () => {
+    if (engine.getMode() === 'cosmic') {
+      cosmicFrame()
+      raf = requestAnimationFrame(frame)
+      return
+    }
     const session = engine.core.getSession()
     const pos = engine.position()
 

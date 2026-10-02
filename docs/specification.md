@@ -756,6 +756,9 @@ M0後の候補:
 
 ## 21. M2 — COSMIC MODE
 
+実装済みの範囲は [cosmic-model.md](./cosmic-model.md) を参照(周期比を保つ圧縮、1周ごとに1回鳴る、周期の順位 → 音高)。
+`compressedPeriodPulses` は整数の pulse ではなく、拍で表した小数の周期(`periodBeats`)として実装した。
+
 KECAK LOOP の同心軌道 time model を宇宙へ接続する。
 
 ```ts

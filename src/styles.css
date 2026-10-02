@@ -168,3 +168,20 @@ textarea { font-family: ui-monospace, monospace; font-size: 12px; resize: vertic
 .msg.ok { color: var(--join); }
 .msg.err { color: #ff8a8a; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* M2: COSMIC MODE */
+.mode { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.preset.systems { grid-template-columns: repeat(4, 1fr); }
+.preset.systems button.seg { padding: 0 4px; font-size: 12px; letter-spacing: 0; }
+.marker.body { stroke: none; }
+.marker.body.planet { fill: #ffcf5a; }
+.marker.body.moon { fill: #e8ebf5; }
+.marker.body.satellite { fill: #5ad1c3; }
+.center-dot.sun { fill: #ffcf5a; opacity: 0.8; }
+.orbit-view.cosmic .marker { transform-box: fill-box; transform-origin: center; }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 13px; }
+.facts dt { color: var(--dim); }
+.facts dd { margin: 0; }
+.why { margin: 0 0 10px; font-size: 13px; line-height: 1.6; }
+.why b { color: var(--accent); }
+.detail h2 .en { color: var(--dim); font-weight: 400; font-size: 12px; letter-spacing: 0.04em; }
