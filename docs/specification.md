@@ -419,6 +419,59 @@ position = globalPulse % pattern.length
 
 ### 16.3 Browser audio unlock
 
+最初の START ユーザー操作内で AudioContext / Tone.start() を unlock する。
+
+### 16.4 Background / visibility
+
+ページが非表示になった場合、復帰後に wall-clock の経過分を追いかけて高速再生しない。
+
+AudioContext / transport の実際の状態を正とし、必要なら安全に再同期する。
+
+### 16.5 Sample architecture
+
+M0は1 sample / voice でもよいが、sample player は将来の round-robin を前提に配列を受け取れる構造にする。
+
+### 16.6 Pattern source isolation
+
+ケチャ由来 pattern は component や scheduler に直書きしない。
+
+`src/data/kecakPresets.ts` に集約し、各 preset に source / note を持たせる。
+
+Cak Lima は特に後から転写を修正しやすくする。
+
+### 16.7 UI density
+
+16-node ring はスマートフォン通常表示で読みにくい可能性がある。
+
+通常時は orbit と current marker を優先し、performer detail を開いたときに拡大 ring を表示する。
+
+### 16.1 時間の正
+
+**Audio clock が唯一の時間の正。React state は表示専用。**
+
+禁止:
+
+- `setInterval` を発音タイミングの基準にする
+- React render / state update を発音トリガーにする
+
+同一 pulse で複数声部が鳴る場合、すべて同一 AudioContext time に schedule する。
+
+### 16.2 途中参加
+
+新しい声部は JOIN した時点で global pulse をリセットしない。
+
+次の scheduled pulse から、
+
+```ts
+position = globalPulse % pattern.length
+```
+
+の現在位置で参加する。
+
+「その人の1周目を待つ」処理はしない。
+
+### 16.3 Browser audio unlock
+
 モバイルブラウザを含め、最初の START ユーザー操作内で AudioContext / Tone.start() を unlock する。
 
 ### 16.4 Background / visibility
