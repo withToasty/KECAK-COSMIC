@@ -1,7 +1,7 @@
 # KECAK-COSMIC — Specification
 
-Version: v0.3  
-Status: M0 implementation baseline
+Version: v0.4  
+Status: M0.1 beat-gesture implementation baseline
 
 この文書は M0 の実装仕様を定義する。  
 思想・背景は [concept.md](./concept.md)、ケチャのリズム設計は [kecak-rhythm-model.md](./kecak-rhythm-model.md)、確定事項は [decision-log.md](./decision-log.md) を参照。
@@ -20,42 +20,42 @@ M0では、実際のケチャの interlocking / kotekan をもとにした8つ�
 
 ## 2. 時間モデル
 
-### 2.1 Global Pulse
+### 2.1 Global Beat
 
-小節で区切らない。
-
-```
-0 1 2 3 4 5 6 7 8 9 10 ... ∞
-```
-
-START から STOP まで1本の pulse が進み続ける。
-
-UI上では 4/4、1小節目、2小節目、といった小節概念をM0では使わない。
-
-### 2.2 Internal Resolution
-
-M0では、
+M0.1では時間の大きな単位を `globalBeat` とする。
 
 ```
-1 klempung beat = 4 internal pulses
+0 1 2 3 4 5 6 ... ∞
 ```
 
-とする。
+UI上では小節番号を主役にしない。Tempo BPM はこの global beat の速度を表す。
 
-internal pulse が全声部共通の最小時間グリッド。
+### 2.2 Beat subdivision
+
+1 global beat = **12 subticks**。
+
+```
+0 1 2 3 4 5 6 7 8 9 10 11
+```
+
+12分割は、2分割・3分割・4分割を整数位置で同時に表現するためのデータ解像度。
+
+- 2分割: 0 / 6
+- 3分割: 0 / 4 / 8
+- 4分割: 0 / 3 / 6 / 9
+
+subtickごとにJavaScript timerを回してはいけない。
+1beatのAudioContext callbackから、beat内部のevent時刻を直接scheduleする。
 
 ### 2.3 Tempo
 
 UI名は `Tempo`。
 
-BPM は **klempung beat の速度** を表す。internal pulse の速度ではない。
-
 Tempo = 120 BPM のとき:
 
 ```
-klempung beat = 120 / min
-internal pulse = 480 / min
-internal pulse interval = 125 ms
+1 beat = 500 ms
+1 subtick = 41.666... ms
 ```
 
 初期値:
@@ -70,43 +70,58 @@ internal pulse interval = 125 ms
 60–220 BPM
 ```
 
+詳細は [beat-gesture-model.md](./beat-gesture-model.md) を正とする。
 ---
 
-## 3. M0の8声部
+## 3. M0.1の8声部
 
-M0 preset:
+最初の8声部の役割は現行M0を維持し、まずscheduler移行と音楽内容変更を分離する。
 
-| Entry | Part | Role | Voice | Pattern length |
+| Entry | Part | Role | Voice | Cycle length |
 |---:|---|---|---|---:|
-| 1 | Juru Klempung | beat keeper | pung | 4 |
-| 2 | Cak Besik — Polos | polos | cak | 4 |
-| 3 | Cak Besik — Sangsih | sangsih | cak | 4 |
-| 4 | Cak Telu — Polos | polos | cak | 8 |
-| 5 | Cak Telu — Sanglot | sanglot | cak | 8 |
-| 6 | Cak Telu — Sangsih | sangsih | cak | 8 |
-| 7 | Cak Lima — Polos | polos | cak | 16 |
-| 8 | Cak Lima — Sangsih | sangsih | cak | 16 |
+| 1 | Juru Klempung | beat keeper | pung | 1 beat |
+| 2 | Cak Besik — Polos | polos | cak | 1 beat |
+| 3 | Cak Besik — Sangsih | sangsih | cak | 1 beat |
+| 4 | Cak Telu — Polos | polos | cak | 2 beats |
+| 5 | Cak Telu — Sanglot | sanglot | cak | 2 beats |
+| 6 | Cak Telu — Sangsih | sangsih | cak | 2 beats |
+| 7 | Cak Lima — Polos | polos | cak | 4 beats |
+| 8 | Cak Lima — Sangsih | sangsih | cak | 4 beats |
 
-pattern 配列は [kecak-rhythm-model.md](./kecak-rhythm-model.md) を正とする。
+旧4-pulse gridは migration helper で次へ写像する。
 
-これは「伝統的ケチャには固定8パートがある」という意味ではない。M0用の source-based abstraction とする。
+```
+q0 -> subtick 0
+q1 -> subtick 3
+q2 -> subtick 6
+q3 -> subtick 9
+```
 
+移行後の source of truth は0/1配列ではなく `BeatCell / VocalEvent`。
+
+その後、実演・採譜に合わせて sustained cak、double、triple、offset pattern、旋律声部へ差し替える。
+engine logic と transcription data は分離する。
 ---
 
 ## 4. Performer の意味
 
 画面上では各声部を代表する人物を1人表示する。
 
-ただし内部的な Performer は **1人の個人ではなく1つの声部グループ**。
+内部的な Performer は **1人の個人ではなく1つの声部グループ**。
 
-M0:
+M0.1 engine は最初から `EnsembleProfile` を持てる形にする。
 
+```ts
+type EnsembleProfile = {
+  size: number
+  timingSpreadMs: number
+  gainSpread: number
+  seed: number
+}
 ```
-groupSize = 1
-```
 
-将来は同じ声部に複数人を持たせ、音圧・微小な揺らぎ・複数テイクへ拡張できるようにする。
-
+schedulerの決定論テストでは size=1 / spread=0。
+試聴では複数人へ展開し、同一eventを完全同時のコピーではなく小さなtiming / gain差を持つ肉声群として鳴らせるようにする。
 ---
 
 ## 5. 初回体験
@@ -118,7 +133,7 @@ groupSize = 1
 - Entry 1 の Juru Klempung のみ `joined = true`
 - Entry 2〜8 は `joined = false`
 - 未参加者は暗いシルエット
-- globalPulse = 0
+- globalBeat = 0
 - playing = false
 
 参加順は固定:
@@ -166,19 +181,22 @@ Entry 8 = 最外周
 
 小さな円を各人物の周囲に8個作る方式は採用しない。
 
-### 6.2 軌道 node
+### 6.2 軌道 beat sector
 
-各軌道の node 数は `pattern.length` と一致。
+各軌道の大きな区画数は `pattern.beats.length` と一致。
 
-- 4 pulse → 4 nodes
-- 8 pulse → 8 nodes
-- 16 pulse → 16 nodes
+- 1 beat cycle → 1 sector
+- 2 beat cycle → 2 sectors
+- 4 beat cycle → 4 sectors
 
-表記:
+各sector内部に、そのbeatで発声する VocalEvent を配置する。
 
-- rest node = ○
-- hit node = ●
-- current marker = 現在位置
+- short event = point
+- sustained event = arc
+- 1beat内の複数event = 同一sector内に複数mark
+- current marker = beat内部を連続移動
+
+旧 `○ / ●` の1bit node表現はM0.1ではsource of truthにしない。
 
 ### 6.3 向き
 
@@ -190,13 +208,13 @@ Entry 8 = 最外周
 
 ### 6.4 marker animation
 
-音の判定自体は discrete な internal pulse で行う。
+音のscheduleは beat callback と AudioContext time を基準にする。
 
-表示上の current marker は、node間を `requestAnimationFrame` で連続的に補間して移動させる。
+表示上の current marker は `requestAnimationFrame` でbeat内部を連続的に補間する。
 
 **音声クロックが主、アニメーションは追従。**
 
-current marker が hit node の時刻を通過した瞬間に発声し、人物と軌道も短く反応する。
+VocalEvent の start 時刻を通過した瞬間に、そのevent mark・人物・軌道を短く反応させる。
 
 ### 6.5 未参加声部
 
@@ -223,21 +241,20 @@ M0では `START` / `STOP` / `RESET` の3操作を持つ。
 停止状態で START を押すと:
 
 1. ユーザー操作内で AudioContext / Tone.js を unlock
-2. globalPulse = 0 から開始
-3. **pulse 0 をSTART時刻として即時評価**
-4. pulse 0 で `joined = true` かつ `muted = false` かつ pattern の hit node が ON の声部は、その開始時刻に発声
-5. 以降 internal pulse を進める
+2. globalBeat = 0 から開始
+3. **beat 0 をSTART時刻として即時評価**
+4. beat 0 内の offsetSubtick=0 のeventはSTART時刻に発声
+5. beat内の後続eventは同じbeat callback timeからAudioContext時刻へ展開
+6. 以降 globalBeat を進める
 
-つまり最初の PUNG は「1 pulse待ってから」ではなく、STARTと同時に鳴る。
-
-START中は START ボタンを無効化する。
+最初の PUNG は1beat待たずSTARTと同時に鳴る。
 
 ### 7.2 STOP
 
 STOP:
 
 - audio transport を停止
-- globalPulse = 0
+- globalBeat = 0
 - marker を node 0 に戻す
 - joined 状態を維持
 - muted 状態を維持
@@ -251,7 +268,7 @@ STOP は「演奏を止めて頭出しする」操作。
 RESET:
 
 - transport を停止
-- globalPulse = 0
+- globalBeat = 0
 - tempoBpm = 120
 - Entry 1 のみ joined
 - Entry 2〜8 は unjoined
@@ -282,26 +299,27 @@ PAUSE は M0 では実装しない。
 
 再生中:
 
-- JOIN要求後の **次の internal pulse boundary** から joined を有効にする
-- globalPulse はリセットしない
-- pattern の先頭を待たない
+- JOIN要求後の **次の global beat boundary** から joined を有効にする
+- globalBeat はリセットしない
+- patternの先頭を待たない
 
 有効化時:
 
 ```ts
-position =
-  globalPulse % pattern.length
+beatIndex =
+  (globalBeat + performer.rotationBeats) %
+  performer.pattern.beats.length
 ```
 
-現在の世界の位置へそのまま入る。
+現在の世界のbeat位置へそのまま入る。
 
 ### 8.2 MUTE
 
-`joined = true` の声部だけ Mute 可能。
+`joined = true` の声部だけMute可能。
 
 停止中は即時反映。
 
-再生中は次の internal pulse boundary から反映。
+再生中は **次の global beat boundary** から反映。
 
 `muted = true` でも orbit marker は動き続ける。
 
@@ -326,66 +344,76 @@ position =
 再生中:
 
 - UI変更を pending tempo として保持
-- **次の klempung beat boundary** から適用
+- **次の global beat boundary** から適用
+- 連続操作された場合は最新の pending tempo のみ採用
 
-つまり globalPulse が次に `% 4 === 0` になる境界で切り替える。
-
-連続操作された場合は最新の pending tempo のみ採用。
-
----
-
-## 9. 発音判定
-
-```ts
-const position =
-  (globalPulse + performer.rotation) %
-  performer.pattern.length
-
-const hit =
-  performer.pattern[position]
-
-const shouldPlay =
-  performer.joined &&
-  !performer.muted &&
-  hit.on
-```
-
-M0では全 performer の `rotation = 0`。
-
-Phase を数値入力するUIは出さない。
-
-将来は orbit ring を回転させる操作で rotation を変更する。
+beat内部ではtempoを変えない。
+同一beatに属するeventは同じsecondsPerBeatでscheduleする。
 
 ---
 
-## 10. Hit モデル
-
-M0から将来の強弱に対応できる形にする。
+## 9. 発音判定とbeat内schedule
 
 ```ts
-type Hit = {
-  on: boolean
-  accent: number
+const beatIndex =
+  (globalBeat + performer.rotationBeats) %
+  performer.pattern.beats.length
+
+const beatCell =
+  performer.pattern.beats[beatIndex]
+
+if (performer.joined && !performer.muted) {
+  for (const event of beatCell) {
+    scheduleVocalEvent(event)
+  }
 }
 ```
 
-`accent`:
-
-- 0.0–1.0
-- M0 preset は原則 1.0
-- 発音時の velocity / gain multiplier として利用可能
-
-pattern文書では可読性のため 0/1 表記を使い、コードロード時に Hit 配列へ変換してよい。
-
-発声gainは原則:
+event start:
 
 ```ts
-effectiveGain =
-  performer.volume * hit.accent
+const eventTime =
+  beatTime +
+  (event.offsetSubtick / 12) *
+    secondsPerBeat
 ```
 
-とし、その後 master chain へ送る。
+同じbeat・同じoffsetSubtickのeventは、humanization前には完全に同一のaudio timeを持つ。
 
+M0.1では `rotationBeats = 0`。
+---
+
+## 10. VocalEvent モデル
+
+```ts
+type VocalEvent = {
+  offsetSubtick: number
+  durationSubticks: number
+  sampleId: SampleId
+  accent: number
+}
+
+type BeatCell = readonly VocalEvent[]
+
+type VoicePattern = {
+  beats: readonly BeatCell[]
+}
+```
+
+表現可能な例:
+
+- 1拍伸ばす `cak-long`
+- 短い単発 `cak-short`
+- 1拍内のdouble
+- 1拍内のtriple
+- off-beat / late double
+- pung
+- 後続の sir / yang / nger / ngur
+
+`durationSubticks` を合わせるためにshort sampleのplaybackRateを極端に変えない。
+長音は長音用の肉声sampleを使う。
+
+詳細は [beat-gesture-model.md](./beat-gesture-model.md)。
 ---
 
 ## 11. Audio Engine
@@ -409,16 +437,18 @@ Canvas / WebGL はM0では使わない。
 
 React state、DOM animation、`setInterval` は発音タイミングの基準にしない。
 
-実装の基本:
-
 ```
 Tone.Transport / audio clock
         ↓
-internal pulse callback
+global beat callback
         ↓
-all performer patterns evaluate
+all performer BeatCell evaluate
         ↓
-same-pulse hits scheduled at SAME audio time
+VocalEvent -> exact audio time
+        ↓
+optional ensemble expansion
+        ↓
+sample scheduling
         ↓
 visual event emitted
         ↓
@@ -427,29 +457,32 @@ React / requestAnimationFrame follows
 
 ### 11.3 Tone.js mapping
 
-klempung beat を quarter-note 相当として扱い、
+global beat を quarter-note 相当として扱う。
 
-```
+```ts
 Tone.Transport.bpm.value = tempoBpm
-internal pulse = "16n"
+
+Tone.Transport.scheduleRepeat((beatTime) => {
+  scheduleBeat(globalBeat, beatTime)
+}, '4n')
 ```
 
-とする。
+subtickごとのTransport callbackは作らない。
+beat callbackから `offsetSubtick / 12` をAudioContext時刻へ変換する。
 
-内部では小節表示を利用しない。
+### 11.4 Same-subtick scheduling
 
-### 11.4 Same-pulse scheduling
+同一beat・同一offsetSubtickで複数声部が発声する場合、
+humanization前の全eventを **同一audio time** にscheduleする。
 
-同一pulseで複数声部が発声する場合、全サンプルを **同一の callback time** に schedule する。
-
-for-loop の実行時刻差を音声時刻へ反映させない。
+for-loopの実行時刻差を音声時刻へ反映させない。
 
 ### 11.5 Background / hidden tab
 
 M0では、再生中にページが hidden になったら自動的に STOP と同じ状態へ移行する。
 
 - joined / muted / volume / tempo は維持
-- globalPulse = 0
+- globalBeat = 0
 - 復帰後はユーザーが START し直す
 
 バックグラウンド中の時間を追跡して catch-up 再生しない。
@@ -458,31 +491,38 @@ M0では、再生中にページが hidden になったら自動的に STOP と�
 
 ## 12. Audio Samples
 
-M0で必要な voice:
+M0.1で最低限必要なsample family:
 
-- `cak`
+- `cak-short`
+- `cak-long`
 - `pung`
 
-### 12.1 Sample player
+推奨初期ファイル:
 
-最初から複数sample対応の形にする。
-
-```ts
-samples.cak = ['cak-01.wav']
-samples.pung = ['pung-01.wav']
+```
+public/sounds/cak-short-01.wav
+public/sounds/cak-short-02.wav
+public/sounds/cak-short-03.wav
+public/sounds/cak-long-01.wav
+public/sounds/cak-long-02.wav
+public/sounds/pung-01.wav
 ```
 
 将来:
 
-```ts
-samples.cak = [
-  'cak-01.wav',
-  'cak-02.wav',
-  'cak-03.wav'
-]
-```
+- `sir`
+- `yang`
+- `nger`
+- `ngur`
 
-として round-robin / variation へ拡張可能にする。
+### 12.1 Sample player
+
+sample familyは複数take対応にする。
+shortとlongは別family。
+
+round-robin / seeded variationへ拡張可能にする。
+
+Tone.PlayerはAudioContext timeでstartし、必要な場合はduration / stopもaudio側でscheduleする。
 
 ### 12.2 Rights
 
@@ -496,141 +536,127 @@ Public repository に含める音源は以下のいずれかだけ:
 
 音源を同梱する場合は `public/sounds/README.md` に出典・作者・ライセンスを記録する。
 
-M0開始時に適切な声素材がなければ、仮音源で実装し後から差し替える。
-
 ### 12.3 Master chain
 
-同時発声による clipping を避ける。
-
-推奨初期構成:
+同時発声・ensemble化によるclippingを避ける。
 
 ```
 voice players
    ↓
-performer gains
+member / performer gains
    ↓
-master gain (-12 dB headroom)
+master gain (headroom)
    ↓
-limiter (-1 dB ceiling)
+limiter
    ↓
 destination
 ```
 
-数値は試聴で調整可能だが、master headroom と safety limiter 自体はM0から持つ。
-
+master headroom と safety limiter はM0.1から持つ。
 ---
 
 ## 13. Preset Data
 
-ケチャ由来 pattern を component / scheduler に直書きしない。
+ケチャ由来patternをcomponent / schedulerへ直書きしない。
 
 ```
 src/data/kecakPresets.ts
 ```
-
-へ集約する。
 
 各presetには最低限:
 
 - id
 - displayName
 - role
-- voice
-- pattern
+- pattern: VoicePattern
+- ensemble
 - defaultVolume
 - sourceNote
 - transcriptionStatus
 
 を持たせる。
 
-特に Cak Lima は後から資料照合による修正を行えるよう、engine logic と完全に分離する。
-
+旧0/1 patternは migration helper の入力にだけ残してよい。
+新規transcriptionのsource of truthにはしない。
 ---
 
 ## 14. Data Model
 
 ```ts
-type Voice = 'cak' | 'pung'
+type SampleId =
+  | 'cak-short'
+  | 'cak-long'
+  | 'pung'
+  | 'sir'
+  | 'yang'
+  | 'nger'
+  | 'ngur'
 
-type Role =
-  | 'beat-keeper'
-  | 'polos'
-  | 'sangsih'
-  | 'sanglot'
-
-type KecakPart =
-  | 'klempung'
-  | 'besik-polos'
-  | 'besik-sangsih'
-  | 'telu-polos'
-  | 'telu-sanglot'
-  | 'telu-sangsih'
-  | 'lima-polos'
-  | 'lima-sangsih'
-
-type Hit = {
-  on: boolean
+type VocalEvent = {
+  offsetSubtick: number
+  durationSubticks: number
+  sampleId: SampleId
   accent: number
+}
+
+type BeatCell = readonly VocalEvent[]
+
+type VoicePattern = {
+  beats: readonly BeatCell[]
+}
+
+type EnsembleProfile = {
+  size: number
+  timingSpreadMs: number
+  gainSpread: number
+  seed: number
 }
 
 type Performer = {
   id: string
   entry: number
   name: string
-  kecakPart: KecakPart
   role: Role
-  voice: Voice
-  pattern: readonly Hit[]
-  rotation: number
+  pattern: VoicePattern
+  rotationBeats: number
   joined: boolean
   muted: boolean
   volume: number
-  groupSize: number
+  ensemble: EnsembleProfile
 }
 
 type Session = {
   tempoBpm: number
   pendingTempoBpm: number | null
-  globalPulse: number
+  globalBeat: number
   playing: boolean
   performers: Performer[]
 }
 ```
 
-Performer の参加状態は `joined`、消音状態は `muted`、発声点は `Hit.on` で表現し、3つの概念を分離する。
-
-`joinedCount` のような導出可能な値も state として保持しない。必要な場合は `performers.filter(p => p.joined).length` から算出する。
-
-状態の意味は:
-
-```
-joined = false
-  → まだ参加していない
-
-joined = true, muted = false
-  → 参加して発声可能
-
-joined = true, muted = true
-  → 参加済みだが無音
-```
-
+Performer参加状態、pattern event、ensemble expansionは別概念として保持する。
 ---
 
 ## 15. Visual Feedback
 
 発声時:
 
-- hit node を短く強調
-- performer avatar を軽く pulse
-- 担当 orbit を短く強調
+- 対応するevent markを短く強調
+- performer avatarを軽くpulse
+- 担当orbitを短く強調
 
-同じpulseで2声以上が発声した場合:
+同じsubtickで複数声部が発声した場合:
 
 - 該当する全声部を同時反応
-- 中央も軽く pulse
+- 中央も軽くpulse
 
-interlocking の「重なった瞬間」を視覚化する。
+long event:
 
+- start時に反応
+- sustain中はarcを保持
+- releaseで通常表示へ戻す
+
+interlockingの「隙間を別の声が埋める」関係をbeat内部で見えるようにする。
 ---
 
 ## 16. Mobile
@@ -647,61 +673,60 @@ interlocking の「重なった瞬間」を視覚化する。
 
 ---
 
-## 17. M0の反復性
+## 17. M0.1の反復性
 
-pattern length は 4 / 8 / 16。
+現行8声部をlegacy mappingで移行した場合、周期は 1 / 2 / 4 beats。
 
-したがって全8声部の状態は最小公倍数である **16 internal pulses ごとに完全に同じ配置へ戻る**。
+したがって完全presetは **4 global beats** ごとに同じbeat配置へ戻る。
+各beat内部では12 subtickのevent位置を持つ。
 
-これはM0の仕様。
+source transcriptionへ差し替えた後は、そのpresetのbeat数の最小公倍数を周期とする。
 
-M0の目的は長大な非反復音楽ではなく、Kecak interlocking を短い周期で理解・体験すること。
-
-長周期・異周期による長時間の関係変化は COSMIC MODE で扱う。
-
+長周期・異周期による長時間の関係変化はCOSMIC MODEで扱う。
 ---
 
 ## 18. Test Fixture
 
-M0の音楽仕様そのものを自動テスト可能にする。
+M0.1のengine仕様を自動テスト可能にする。
 
-全8声部 joined / unmuted / rotation 0 の状態で、pulse 0〜15 に「どの声部が鳴るか」の正解表を固定する。
+正解表:
+[m0-beat-event-fixture.md](./m0-beat-event-fixture.md)
 
-正解表は [m0-pulse-fixture.md](./m0-pulse-fixture.md) を参照。
+旧 [m0-pulse-fixture.md](./m0-pulse-fixture.md) はmigration equivalence確認用のlegacy fixture。
 
 最低限テストする:
 
-- pulse 0 の発声
-- 16 pulse の完全反復
-- START時の off-by-one
+- beat 0 immediate
+- double onset
+- triple onset
+- same-subtick same audio time
+- long / short sample ID separation
+- legacy 4-grid migration
 - STOP → START
-- JOIN途中参加
-- MUTE
-- tempo境界変更
-- same-pulse scheduling
-
+- JOIN beat boundary
+- MUTE beat boundary
+- tempo beat boundary
+- ensemble seed determinism
 ---
 
-## 19. M0 完了条件
+## 19. M0.1 完了条件
 
-以下が成立すればM0完了。
+以下が成立すればbeat-gesture engine移行完了。
 
-- audio clock 基準の global pulse が安定して流れる
-- START時に pulse 0 が即時発声する
-- STOP / RESET が仕様通り動く
-- 8席が円形に表示される
-- 8本の同心軌道を共有中心で表示できる
-- 1人から固定順で8声部まで参加させられる
-- 各声部が定義済み pattern を繰り返す
-- 4 / 8 / 16 pulse の node が正しく動く
-- 同時発声が同一AudioContext timeで鳴る
-- Mute / Volume が動く
-- Tempo変更が beat境界で反映される
-- cak / pung が鳴る
-- hidden tab で安全にSTOPする
-- fixture test が通る
+- audio clock基準のglobal beatが安定して流れる
+- START時にbeat 0 / offset 0が即時発声する
+- 1beat内部に複数eventをscheduleできる
+- 2分割 / 3分割 / 4分割eventを正しく置ける
+- cak-short / cak-long / pungを別sample familyとして鳴らせる
+- long sampleをshort sampleの極端なtime-stretchで代用しない
+- 同一subtick eventが同一AudioContext timeを共有する
+- legacy 0/1 presetを音価を変えず移行できる
+- JOIN / MUTE / tempoがbeat boundaryで反映される
+- ensemble layerをsize=1にすれば決定論テストできる
+- ensemble layerを複数人にすれば微小timing / gain差を付けられる
+- orbit UIがbeat sectorとbeat内eventを表現できる
+- fixture testが通る
 - スマートフォンで操作できる
-
 ---
 
 ## 20. M1 — 楽器化
