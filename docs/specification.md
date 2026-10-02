@@ -597,7 +597,7 @@ type Session = {
 }
 ```
 
-Performer レベルでは `active` という状態名は使わない。発声点は `Hit.on`、参加状態は `joined`、消音状態は `muted` で表現する。
+Performer の参加状態は `joined`、消音状態は `muted`、発声点は `Hit.on` で表現し、3つの概念を分離する。
 
 `joinedCount` のような導出可能な値も state として保持しない。必要な場合は `performers.filter(p => p.joined).length` から算出する。
 
