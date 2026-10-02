@@ -10,6 +10,7 @@ is never made by stretching a short sample.
 |---|---|---|---|---|
 | `cak-short-01.wav` … `03` | cak-short | Generated (this repo) | Same as the repository | Placeholder, replace with recorded voices |
 | `cak-long-01.wav`, `02` | cak-long | Generated (this repo) | Same as the repository | Placeholder, replace with recorded voices |
+| `sir-01.wav` | sir | Generated (this repo) | Same as the repository | Placeholder, replace with a recording |
 | `pung-01.wav` | pung | Generated (this repo) | Same as the repository | Placeholder, replace with a recorded voice |
 
 Any recorded sample added here must have its source, author and license listed

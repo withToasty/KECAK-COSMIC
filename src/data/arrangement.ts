@@ -35,13 +35,15 @@ const SAMPLE_TO_CODE: Partial<Record<SampleId, string>> = {
   'cak-short': 's',
   'cak-long': 'l',
   pung: 'p',
+  sir: 'r',
 }
 const CODE_TO_SAMPLE: Record<string, SampleId> = {
   s: 'cak-short',
   l: 'cak-long',
   p: 'pung',
+  r: 'sir',
 }
-const ROLES: readonly Role[] = ['beat-keeper', 'polos', 'sangsih', 'sanglot', 'custom']
+const ROLES: readonly Role[] = ['beat-keeper', 'polos', 'sangsih', 'sanglot', 'pola', 'custom']
 const MAX_CODE_LENGTH = 40_000
 
 export function encodeArrangement(session: Session): string {

@@ -1,4 +1,4 @@
-import { KECAK_PRESETS } from '../data/kecakPresets'
+import { findPreset } from '../data/presetSets'
 import type { Performer } from '../domain/rhythm'
 import { OrbitRing } from './OrbitRing'
 import {
@@ -13,7 +13,7 @@ import {
 } from './geometry'
 
 const labelOf = (p: Performer) =>
-  KECAK_PRESETS.find((x) => x.id === p.id)?.shortLabel ?? `V${p.entry}`
+  findPreset(p.id)?.shortLabel ?? `V${p.entry}`
 
 type Props = {
   performers: Performer[]

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { KECAK_PRESETS } from '../data/kecakPresets'
+import { findPreset } from '../data/presetSets'
 import {
   SUBTICKS_PER_BEAT,
   type BeatCell,
@@ -9,7 +9,7 @@ import {
 import { MAX_BEATS, MAX_ENSEMBLE } from '../engine/types'
 import { engine } from './useEngine'
 import { cycleAngle, pointOnCircle } from './geometry'
-import { GESTURES, matchGesture, toggleEvent } from './gestures'
+import { GESTURES, isSustained, matchGesture, toggleEvent } from './gestures'
 import { OrbitRing } from './OrbitRing'
 
 const ROLE_LABEL: Record<Performer['role'], string> = {
@@ -17,6 +17,7 @@ const ROLE_LABEL: Record<Performer['role'], string> = {
   polos: 'polos (on-beat)',
   sangsih: 'sangsih (off-beat)',
   sanglot: 'sanglot (in-between)',
+  pola: 'cak pattern (pola cak)',
   custom: 'custom voice',
 }
 
@@ -117,7 +118,7 @@ function patternSummary(p: Performer): string {
       cell.length === 0
         ? '–'
         : cell
-            .map((e) => (e.sampleId === 'cak-long' ? `${e.offsetSubtick}~` : String(e.offsetSubtick)))
+            .map((e) => (isSustained(e.sampleId) ? `${e.offsetSubtick}~` : String(e.offsetSubtick)))
             .join(','),
     )
     .join(' | ')
@@ -158,7 +159,7 @@ export function DetailPanel({
   performer: Performer
   onClose: () => void
 }) {
-  const preset = KECAK_PRESETS.find((x) => x.id === p.id)
+  const preset = findPreset(p.id)
 
   // Local copy of the pattern: edits made while playing are queued until the
   // next beat, so quick successive taps must build on each other, not on the
@@ -169,7 +170,7 @@ export function DetailPanel({
   const cycle = beats.length
   const selected = Math.min(sel, cycle - 1)
   const cell = beats[selected] ?? []
-  const sustained = cell.some((e) => e.sampleId === 'cak-long')
+  const sustained = cell.some((e) => isSustained(e.sampleId))
 
   const commit = (next: readonly BeatCell[]) => {
     setBeats(next)

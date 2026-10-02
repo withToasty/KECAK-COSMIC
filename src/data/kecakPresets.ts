@@ -9,7 +9,7 @@
 import type { EnsembleProfile, Role, VoicePattern } from '../domain/rhythm'
 import { migrateLegacyPattern } from '../domain/migrateLegacyPattern'
 
-export type TranscriptionStatus = 'source-based' | 'needs-verification'
+export type TranscriptionStatus = 'source-based' | 'needs-verification' | 'stage-board'
 
 export type KecakPreset = {
   id: string

@@ -5,9 +5,10 @@
 import type { BeatCell, VocalEvent, VoicePattern } from '../domain/rhythm'
 import { CAK_LONG } from './gestureLibrary'
 import { KECAK_PRESETS, presetPattern, type KecakPreset } from './kecakPresets'
+import { STAGE_PRESETS } from './stagePresets'
 
 export type PresetSet = {
-  id: 'legacy' | 'gesture'
+  id: 'legacy' | 'gesture' | 'stage'
   label: string
   description: string
   presets: readonly KecakPreset[]
@@ -65,6 +66,18 @@ export const PRESET_SETS: readonly PresetSet[] = [
     description: '長音「チャーー」、2連、3連、裏の2連を入れた編成案',
     presets: gesturePresets,
   },
+  {
+    id: 'stage',
+    label: 'Stage 4',
+    description: '舞台の説明板から読み取った4パターン(Cak Lima / Cak Nem / Penyanglot と基本の刻み)と、Sirrr / Pung',
+    presets: STAGE_PRESETS,
+  },
 ]
+
+/** Every preset voice across all sets, for labels and descriptions. */
+export const ALL_PRESETS: readonly KecakPreset[] = PRESET_SETS.flatMap((s) => s.presets)
+
+export const findPreset = (id: string): KecakPreset | undefined =>
+  ALL_PRESETS.find((p) => p.id === id)
 
 export const DEFAULT_PRESET_SET = PRESET_SETS[0]

@@ -92,3 +92,9 @@ See [M1 Instrument](./m1-instrument.md).
 - User-made voices (max 12 voices in total) can be removed; preset voices can only leave or mute. Seats and orbits re-space to the voice count.
 - A share code is `k1.` + base64url(JSON); decoding validates type, range and count and rejects anything else. Saved presets live in localStorage and the app works without it.
 - Cak Nem / Pitu / Ocel / Lesung, Panyelah and Juru Gending are not added: they need transcription sources. Users can build such voices themselves with the editor.
+
+## Stage 4 preset
+
+- A third arrangement, `Stage 4`, is read from a stage explainer board photo (4 rhythm patterns on a 16-column grid plus a tambur line "Sirrr / Pung / Pung / Pung"). Details and the reading are in [Stage Board](./stage-board.md).
+- It is recorded as `transcriptionStatus: 'stage-board'` and its source note says it is not a scholarly source. It does not verify the Besik / Telu / Lima preset, which stays `needs-verification`.
+- `sir` becomes a playable sample (placeholder synthesis) and is drawn as a sustained arc. A new role `pola` labels the cak patterns whose part names are not confirmed.

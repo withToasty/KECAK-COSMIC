@@ -1,4 +1,5 @@
 import { SUBTICKS_PER_BEAT, type Performer } from '../domain/rhythm'
+import { isSustained } from './gestures'
 
 export const VIEW = 400
 export const CENTER = VIEW / 2
@@ -53,7 +54,7 @@ export function eventMarks(p: Performer): EventMark[] {
         eventIndex,
         startAngle: cycleAngle(startBeat, cycle),
         sweep: cycleAngle(Math.min(durBeats, cycle), cycle),
-        sustained: e.sampleId === 'cak-long',
+        sustained: isSustained(e.sampleId),
       })
     })
   })

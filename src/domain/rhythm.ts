@@ -29,7 +29,7 @@ export type EnsembleProfile = {
   seed: number
 }
 
-export type Role = 'beat-keeper' | 'polos' | 'sangsih' | 'sanglot' | 'custom'
+export type Role = 'beat-keeper' | 'polos' | 'sangsih' | 'sanglot' | 'pola' | 'custom'
 
 export type Performer = {
   id: string
