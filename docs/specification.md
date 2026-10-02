@@ -160,9 +160,21 @@ M0では:
 
 ## 7. Tempo
 
-UI名は `Pulse Tempo`。
+UI名は `Tempo`。
 
-内部では BPM 値を利用してよい。
+**BPM は klempung beat の速度を表す。internal pulse の速度ではない。**
+
+```
+1 klempung beat = 4 internal pulses
+```
+
+したがって Tempo = 120 BPM のとき:
+
+```
+klempung beat = 120 / min
+internal pulse = 480 / min
+internal pulse interval = 125 ms
+```
 
 初期値:
 
@@ -175,6 +187,8 @@ UI名は `Pulse Tempo`。
 ```
 60–220 BPM
 ```
+
+スケジューラは内部的に `tempoBpm * 4` の pulse rate を使う。
 
 M0では全パートが同じ global pulse を共有する。
 
@@ -315,21 +329,30 @@ type KecakPart =
   | 'lima-polos'
   | 'lima-sangsih'
 
+type Hit = {
+  active: boolean
+  accent: number // M0 default = 1.0
+}
+
 type Performer = {
   id: string
   name: string
   kecakPart: KecakPart
   role: 'beat-keeper' | 'polos' | 'sangsih' | 'sanglot'
   voice: Voice
-  pattern: readonly (0 | 1)[]
+  pattern: readonly Hit[]
   rotation: number
   active: boolean
   joined: boolean
   volume: number
+
+  // UI上は代表者1人を表示するが、内部概念は「声部グループ」。
+  // M0では常に1。将来は複数人化・微小な揺らぎに使う。
+  groupSize: number
 }
 
 type Session = {
-  pulseBpm: number
+  tempoBpm: number // klempung beat BPM
   globalPulse: number
   playing: boolean
   joinedCount: number
@@ -343,7 +366,7 @@ type Session = {
 
 ```ts
 {
-  pulseBpm: 120,
+  tempoBpm: 120,
   globalPulse: 0,
   playing: false,
   joinedCount: 1
@@ -368,6 +391,72 @@ pung . . . pung . . . pung ...
 
 - Tone.js
 - Web Audio API
+
+### 16.1 時間の正
+
+**Audio clock が唯一の時間の正。React state は表示専用。**
+
+禁止:
+
+- `setInterval` を発音タイミングの基準にする
+- React render / state update を発音トリガーにする
+
+同一 pulse で複数声部が鳴る場合、すべて同一 AudioContext time に schedule する。
+
+### 16.2 途中参加
+
+新しい声部は JOIN した時点で global pulse をリセットしない。
+
+次の scheduled pulse から、
+
+```ts
+position = globalPulse % pattern.length
+```
+
+の現在位置で参加する。
+
+「その人の1周目を待つ」処理はしない。
+
+### 16.3 Browser audio unlock
+
+モバイルブラウザを含め、最初の START ユーザー操作内で AudioContext / Tone.start() を unlock する。
+
+### 16.4 Background / visibility
+
+M0ではページが非表示になった場合、復帰後に wall-clock の経過分を追いかけて高速再生しない。
+
+AudioContext / transport の実際の状態を正とし、必要なら安全に再同期する。
+
+### 16.5 Sample architecture
+
+M0は1 sample / voice でもよいが、sample player は将来の round-robin を前提に配列を受け取れる構造にする。
+
+例:
+
+```ts
+samples.cak = ['cak-01.wav']
+```
+
+M1以降:
+
+```ts
+samples.cak = ['cak-01.wav', 'cak-02.wav', 'cak-03.wav']
+```
+
+### 16.6 Pattern source isolation
+
+ケチャ由来 pattern は component や scheduler に直書きしない。
+
+`src/data/kecakPresets.ts` に集約し、各 preset に source / note を持たせる。
+
+Cak Lima は特に後から転写を修正しやすくする。
+
+### 16.7 UI density
+
+16-node ring はスマートフォン通常表示で読みにくい可能性がある。
+
+通常時は orbit と current marker を優先し、node は簡略表示してよい。
+performer detail を開いたときに拡大 ring を表示する。
 
 構造:
 
@@ -519,7 +608,19 @@ celestial body + actual-looking orbit
 
 ---
 
-## 22. M0ではやらないこと
+## 22. M0の反復性
+
+M0の pattern length は 4 / 8 / 16 なので、全声部の状態は最小公倍数である **16 internal pulses ごとに完全に同じ配置へ戻る**。
+
+これは仕様とする。
+
+M0の目的は長大な非反復音楽ではなく、**Kecak interlocking の成立を短い周期で理解・体験すること**。
+
+長周期・異周期による「関係が長時間変化し続ける」体験は COSMIC MODE で扱う。
+
+---
+
+## 23. M0ではやらないこと
 
 - ログイン
 - DB
@@ -539,7 +640,7 @@ celestial body + actual-looking orbit
 
 ---
 
-## 23. 開発順序
+## 24. 開発順序
 
 1. Vite + React + TypeScript
 2. global pulse scheduler
