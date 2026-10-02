@@ -27,6 +27,7 @@ KECAK-COSMIC は、ケチャのように複数の反復する声・リズムが�
 - [M1 Instrument / 楽器化](docs/m1-instrument.md)
 - [Stage 4 / 舞台の説明板からの読み取り](docs/stage-board.md)
 - [Cosmic Model / COSMIC MODE の規則](docs/cosmic-model.md)
+- [Cosmic Research / 発展の調査メモ](docs/cosmic-research.md)
 - [Cue Model / 合図とキメ](docs/cue-model.md)
 - [Beat Gesture Model / 1拍内の発声モデル](docs/beat-gesture-model.md)
 - [M0.1 Implementation Plan / 実装手順](docs/implementation-plan.md)

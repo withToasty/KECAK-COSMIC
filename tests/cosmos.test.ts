@@ -25,6 +25,10 @@ describe('data', () => {
     expect(days('mercury')).toBeCloseTo(87.97, 2)
     expect(days('mars')).toBeCloseTo(686.98, 2)
     expect(days('jupiter')).toBeCloseTo(4332.59, 2)
+    expect(days('earth')).toBeCloseTo(365.256, 3)
+    expect(days('uranus')).toBeCloseTo(30685.4, 1) // NASA planetary fact sheet
+    expect(days('neptune')).toBeCloseTo(60189.018, 2) // NASA planetary fact sheet
+    expect(findBody('earth-rotation')!.realPeriodSeconds / 3600).toBeCloseTo(23.9345, 3)
     expect(days('io')).toBeCloseTo(1.769, 3)
     expect(days('callisto')).toBeCloseTo(16.689, 3)
     expect(findBody('iss')!.realPeriodSeconds / 60).toBeCloseTo(92.9, 1)
