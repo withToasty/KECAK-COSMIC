@@ -47,6 +47,9 @@ This document records the current design decisions that should be treated as the
 - The audio master chain includes headroom and a safety limiter from M0.
 - Public-repo audio assets must have explicit provenance and reuse rights; unknown-origin samples are not committed.
 - Pulse 0–15 behavior for the complete eight-voice preset is frozen as a test fixture and must pass before M0 is considered complete.
+- All eight orbit outlines are visible from startup; unjoined voices hide their nodes and moving markers until joined.
+- Voice-to-orbit mapping is conveyed structurally with labels, not by color alone.
+- Derived values such as joinedCount are computed from performer state rather than stored separately.
 
 ## Source of truth
 
