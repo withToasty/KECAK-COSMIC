@@ -177,7 +177,7 @@ Entry 8 = 最外周
 表記:
 
 - rest node = ○
-- active node = ●
+- hit node = ●
 - current marker = 現在位置
 
 ### 6.3 向き
@@ -196,7 +196,7 @@ Entry 8 = 最外周
 
 **音声クロックが主、アニメーションは追従。**
 
-current marker が active node の時刻を通過した瞬間に発声し、人物と軌道も短く反応する。
+current marker が hit node の時刻を通過した瞬間に発声し、人物と軌道も短く反応する。
 
 ### 6.5 未参加声部
 
@@ -225,7 +225,7 @@ M0では `START` / `STOP` / `RESET` の3操作を持つ。
 1. ユーザー操作内で AudioContext / Tone.js を unlock
 2. globalPulse = 0 から開始
 3. **pulse 0 をSTART時刻として即時評価**
-4. pulse 0 が active な声部はその開始時刻に発声
+4. pulse 0 で `joined = true` かつ `muted = false` かつ pattern の hit node が ON の声部は、その開始時刻に発声
 5. 以降 internal pulse を進める
 
 つまり最初の PUNG は「1 pulse待ってから」ではなく、STARTと同時に鳴る。
@@ -347,7 +347,7 @@ const hit =
 const shouldPlay =
   performer.joined &&
   !performer.muted &&
-  hit.active
+  hit.on
 ```
 
 M0では全 performer の `rotation = 0`。
@@ -364,7 +364,7 @@ M0から将来の強弱に対応できる形にする。
 
 ```ts
 type Hit = {
-  active: boolean
+  on: boolean
   accent: number
 }
 ```
@@ -569,7 +569,7 @@ type KecakPart =
   | 'lima-sangsih'
 
 type Hit = {
-  active: boolean
+  on: boolean
   accent: number
 }
 
@@ -597,7 +597,7 @@ type Session = {
 }
 ```
 
-`active` という状態は使わない。
+Performer レベルでは `active` という状態名は使わない。発声点は `Hit.on`、参加状態は `joined`、消音状態は `muted` で表現する。
 
 `joinedCount` のような導出可能な値も state として保持しない。必要な場合は `performers.filter(p => p.joined).length` から算出する。
 
@@ -620,7 +620,7 @@ joined = true, muted = true
 
 発声時:
 
-- active node を短く強調
+- hit node を短く強調
 - performer avatar を軽く pulse
 - 担当 orbit を短く強調
 
