@@ -82,7 +82,7 @@ on    half
 
 global pulse が1つ進むたびに、各声部の現在位置も1 node進む。node 0 は12時方向、進行方向は時計回り。
 
-現在位置が active node に到達した瞬間だけ発声する。
+現在位置が hit node に到達した瞬間だけ発声する。
 
 つまり、
 
@@ -331,7 +331,7 @@ cak telu の3声 interlock が完成する。
     5   4
 ```
 
-`1*` のみ active。
+`1*` のみ joined。
 
 ユーザーが `JOIN NEXT VOICE` を押すか、次の暗い人物をクリックすると次のパートが参加する。
 
@@ -354,7 +354,7 @@ cak telu の3声 interlock が完成する。
 - 8 pulse part → 8 node ring
 - 16 pulse part → 16 node ring
 
-active node は塗りつぶす。
+hit node は塗りつぶす。
 
 current position は別の moving marker で示す。
 
@@ -384,7 +384,7 @@ type KecakPart =
   | 'lima-sangsih'
 
 type Hit = {
-  active: boolean
+  on: boolean
   accent: number
 }
 
@@ -425,7 +425,7 @@ const position =
 const shouldPlay =
   performer.joined &&
   !performer.muted &&
-  performer.pattern[position].active
+  performer.pattern[position].on
 ```
 
 ---
@@ -515,7 +515,7 @@ M0の8パートを「唯一の正しいケチャ」として扱わない。
 
 M0では `groupSize = 1` とするが、将来は同じパートを複数人が担う状態を表現できるようにする。
 
-M0の状態は `joined` と `muted` で表現し、`active` という曖昧な状態名は使わない。
+M0のPerformer状態は `joined` と `muted` で表現する。発声点は `Hit.on` とし、Performer状態と発声点の概念を分離する。
 
 これにより、人数差・音圧・わずかなタイミング差・複数テイクの声を後から追加しても、ケチャの集団性を壊さず拡張できる。
 
