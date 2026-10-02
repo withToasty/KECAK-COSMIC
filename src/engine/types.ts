@@ -11,6 +11,7 @@ export type Session = {
   globalBeat: number
   playing: boolean
   cue: CuePhase
+  presetSet: string
   performers: Performer[]
 }
 

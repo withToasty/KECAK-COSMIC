@@ -3,6 +3,9 @@ import { collectBeatEvents } from '../src/audio/beatScheduler'
 import { buildEnsemble } from '../src/audio/ensemble'
 import { CUE_CALL, CUE_RESPONSE } from '../src/data/cuePhrase'
 import { gestureAuditionPerformers } from '../src/data/gestureAuditionPreset'
+import { presetPattern } from '../src/data/kecakPresets'
+import { PRESET_SETS } from '../src/data/presetSets'
+import { assertVoicePattern } from '../src/domain/rhythm'
 import { EngineCore, type EventSink, type MemberTrigger } from '../src/engine/core'
 import { createSession } from '../src/engine/session'
 
@@ -335,5 +338,60 @@ describe('visual clock', () => {
 
   it('reports position 0 when stopped', () => {
     expect(setup().core.positionAt(123)).toBe(0)
+  })
+})
+
+describe('preset sets (legacy / gesture)', () => {
+  const gesture = PRESET_SETS.find((s) => s.id === 'gesture')!
+  const legacy = PRESET_SETS.find((s) => s.id === 'legacy')!
+
+  it('every pattern in both sets is valid', () => {
+    for (const set of PRESET_SETS) {
+      for (const p of set.presets) {
+        expect(() => assertVoicePattern(presetPattern(p)), `${set.id}/${p.id}`).not.toThrow()
+      }
+    }
+  })
+
+  it('legacy uses only single short hits; gesture adds long, double and triple', () => {
+    const events = (set: typeof gesture) =>
+      set.presets.flatMap((p) => presetPattern(p).beats.flatMap((cell) => cell))
+    expect(events(legacy).some((e) => e.sampleId === 'cak-long')).toBe(false)
+    const cells = gesture.presets.flatMap((p) => presetPattern(p).beats)
+    expect(events(gesture).some((e) => e.sampleId === 'cak-long')).toBe(true)
+    expect(cells.some((c) => c.length === 2)).toBe(true) // double
+    expect(cells.some((c) => c.length === 3)).toBe(true) // triple
+  })
+
+  it('keeps the same seats, roles and ensembles in both sets', () => {
+    expect(gesture.presets.map((p) => [p.id, p.entry, p.role, p.ensemble])).toEqual(
+      legacy.presets.map((p) => [p.id, p.entry, p.role, p.ensemble]),
+    )
+  })
+
+  it('switching sets resets the session into the chosen arrangement', () => {
+    const { core, joinAll } = setup()
+    joinAll()
+    core.setTempo(180)
+    core.setPresetSet(gesture)
+    const s = core.getSession()
+    expect(s.presetSet).toBe('gesture')
+    expect(s.tempoBpm).toBe(120)
+    expect(s.performers.filter((p) => p.joined).map((p) => p.id)).toEqual(['klempung'])
+    expect(s.performers[1].pattern.beats[0][0].sampleId).toBe('cak-long')
+    core.setPresetSet(legacy)
+    expect(core.getSession().performers[1].pattern.beats[0][0].sampleId).toBe('cak-short')
+  })
+
+  it('the gesture arrangement plays a sustained cak on the downbeat and a fill at the cycle end', () => {
+    const { core, joinAll, run } = setup()
+    core.setPresetSet(gesture)
+    joinAll()
+    core.markStarted()
+    const beats = run(4)
+    expect(beats[0].events.filter((e) => e.sampleId === 'cak-long').length).toBeGreaterThanOrEqual(1)
+    expect(beats[1].events.some((e) => e.sampleId === 'cak-long')).toBe(false)
+    const tripleFill = beats[3].events.filter((e) => e.performerId === 'telu-polos')
+    expect(tripleFill.map((e) => e.offsetSubtick)).toEqual([0, 4, 8])
   })
 })

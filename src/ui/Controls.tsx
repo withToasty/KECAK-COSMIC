@@ -1,4 +1,5 @@
 import { TEMPO_MAX, TEMPO_MIN, type Session } from '../engine/types'
+import { PRESET_SETS } from '../data/presetSets'
 import { engine } from './useEngine'
 
 const CUE_LABEL = {
@@ -9,7 +10,7 @@ const CUE_LABEL = {
 } as const
 
 const CUE_HINT = {
-  idle: 'next cycle',
+  idle: 'next beat',
   armed: 'tap to cancel',
   call: '',
   response: '',
@@ -20,6 +21,21 @@ export function Controls({ session }: { session: Session }) {
   const allJoined = joined >= session.performers.length
   return (
     <div className="controls">
+      <div className="preset" role="group" aria-label="Arrangement">
+        {PRESET_SETS.map((set) => (
+          <button
+            key={set.id}
+            className={session.presetSet === set.id ? 'seg on' : 'seg'}
+            aria-pressed={session.presetSet === set.id}
+            onClick={() => engine.setPresetSet(set)}
+          >
+            {set.label}
+          </button>
+        ))}
+        <p className="preset-note">
+          {PRESET_SETS.find((s) => s.id === session.presetSet)?.description}
+        </p>
+      </div>
       <div className="transport">
         <button
           className="primary"

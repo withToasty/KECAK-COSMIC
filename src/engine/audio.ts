@@ -7,6 +7,7 @@ import {
   type MemberTrigger,
 } from './core'
 import type { ScheduledVocalEvent } from '../audio/beatScheduler'
+import type { PresetSet } from '../data/presetSets'
 
 const MASTER_HEADROOM_DB = -12
 const LIMITER_CEILING_DB = -1
@@ -137,6 +138,12 @@ export class KecakEngine {
   reset(): void {
     this.stop()
     this.core.reset()
+  }
+
+  /** Switch arrangement (stops playback and returns to the initial session). */
+  setPresetSet(set: PresetSet): void {
+    this.stop()
+    this.core.setPresetSet(set)
   }
 
   setVolume(id: string, volume: number): void {

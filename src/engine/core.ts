@@ -9,6 +9,7 @@ import {
 import { buildEnsemble, type EnsembleMember } from '../audio/ensemble'
 import { CUE_BEATS, CUE_CALL, CUE_RESPONSE } from '../data/cuePhrase'
 import type { Performer } from '../domain/rhythm'
+import type { PresetSet } from '../data/presetSets'
 import { clampTempo, createSession, joinedCount } from './session'
 import type { CuePhase, Session } from './types'
 
@@ -42,6 +43,7 @@ const TIMELINE_LIMIT = 8
 
 export class EngineCore {
   private session: Session = createSession()
+  private presetSet: PresetSet | null = null
   private beat = 0
   private queue: Command[] = []
   private pendingJoins = 0
@@ -100,7 +102,10 @@ export class EngineCore {
 
   /** RESET: restore the complete initial session. Caller stops audio first. */
   reset(): void {
-    this.session = createSession()
+    this.session = this.presetSet
+      ? createSession(this.presetSet.presets, this.presetSet.id)
+      : createSession()
+    this.members.clear()
     this.queue = []
     this.pendingJoins = 0
     this.clearCue()
@@ -108,6 +113,12 @@ export class EngineCore {
     this.timeline = []
     this.visual = []
     this.commit()
+  }
+
+  /** Switch arrangement: a full reset into the chosen preset set. */
+  setPresetSet(set: PresetSet): void {
+    this.presetSet = set
+    this.reset()
   }
 
   private clearCue(): void {

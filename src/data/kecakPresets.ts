@@ -19,6 +19,8 @@ export type KecakPreset = {
   role: Role
   /** Legacy 0/1 grid, 4 characters per beat. Migration input only. */
   legacyGrid: string
+  /** Explicit BeatCell pattern; takes precedence over legacyGrid. */
+  pattern?: VoicePattern
   defaultVolume: number
   ensemble: EnsembleProfile
   description: string
@@ -147,6 +149,7 @@ export const KECAK_PRESETS: readonly KecakPreset[] = [
 ]
 
 export function presetPattern(preset: KecakPreset): VoicePattern {
+  if (preset.pattern) return preset.pattern
   const bits = [...preset.legacyGrid].map((c) => (c === '1' ? 1 : 0))
   return preset.role === 'beat-keeper'
     ? migrateLegacyPattern(bits, { sampleId: 'pung', durationSubticks: 3 })

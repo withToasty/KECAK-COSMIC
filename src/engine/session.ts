@@ -19,6 +19,7 @@ export function createPerformer(preset: KecakPreset): Performer {
 
 export function createSession(
   presets: readonly KecakPreset[] = KECAK_PRESETS,
+  presetSet = 'legacy',
 ): Session {
   return {
     tempoBpm: TEMPO_DEFAULT,
@@ -26,6 +27,7 @@ export function createSession(
     globalBeat: 0,
     playing: false,
     cue: 'idle',
+    presetSet,
     performers: presets.map(createPerformer),
   }
 }

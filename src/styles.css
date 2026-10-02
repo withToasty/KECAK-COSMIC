@@ -71,6 +71,10 @@ body {
 
 /* controls */
 .controls { display: grid; gap: 10px; }
+.preset { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.preset-note { grid-column: 1 / -1; margin: 0; font-size: 12px; color: var(--dim); }
+button.seg { min-height: 40px; }
+button.seg.on { border-color: var(--accent); color: var(--accent); background: #2a2410; }
 .transport { display: grid; grid-template-columns: 2fr 2fr 1fr; gap: 8px; }
 
 button {
