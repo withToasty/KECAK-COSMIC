@@ -78,8 +78,13 @@ class ToneSink implements EventSink {
 
   /** Create every player the performers (and the cue) can use, ahead of time. */
   warm(performers: readonly Performer[]): void {
+    if (this.buffers.size === 0) return // not loaded yet; START warms after loading
     for (const p of performers) {
-      const ids = new Set<SampleId>(['pung', 'cak-short', 'cak-long'])
+      // Cue answers use pung (beat keeper) / cak-short (others); the beat keeper
+      // also voices the cue call.
+      const ids = new Set<SampleId>(
+        p.role === 'beat-keeper' ? ['pung', 'cak-short', 'cak-long'] : ['cak-short'],
+      )
       for (const beat of p.pattern.beats) for (const e of beat) ids.add(e.sampleId)
       for (let m = 0; m < Math.max(1, p.ensemble.size); m++) {
         for (const id of ids) this.bank(p.id, m, id)
@@ -115,6 +120,12 @@ export class KecakEngine {
   private sink = new ToneSink()
   readonly core = new EngineCore(this.sink)
   private starting = false
+
+  constructor() {
+    // Edits can add voices or ensemble members: create their players right away
+    // so the first hit is not delayed by lazy creation.
+    this.core.subscribe(() => this.sink.warm(this.core.getSession().performers))
+  }
 
   async start(): Promise<void> {
     if (this.core.getSession().playing || this.starting) return
@@ -156,6 +167,12 @@ export class KecakEngine {
   setPresetSet(set: PresetSet): void {
     this.stop()
     this.core.setPresetSet(set)
+  }
+
+  /** Replace the whole arrangement (saved preset / share code). */
+  loadArrangement(a: Parameters<EngineCore['loadArrangement']>[0]): void {
+    this.stop()
+    this.core.loadArrangement(a)
   }
 
   setVolume(id: string, volume: number): void {
