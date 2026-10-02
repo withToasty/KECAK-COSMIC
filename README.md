@@ -23,6 +23,7 @@ KECAK-COSMIC は、ケチャのように複数の反復する声・リズムが�
 
 - [Concept / 思想](docs/concept.md)
 - [Specification / 実装仕様](docs/specification.md)
+- [Kecak Rhythm Model / ケチャのリズム設計](docs/kecak-rhythm-model.md)
 
 ## Status
 
