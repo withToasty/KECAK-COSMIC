@@ -185,3 +185,8 @@ textarea { font-family: ui-monospace, monospace; font-size: 12px; resize: vertic
 .why { margin: 0 0 10px; font-size: 13px; line-height: 1.6; }
 .why b { color: var(--accent); }
 .detail h2 .en { color: var(--dim); font-weight: 400; font-size: 12px; letter-spacing: 0.04em; }
+
+.startmode { display: grid; gap: 8px; }
+.datepick { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+input[type='date'] { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 0; min-height: 44px; }
+b.simdate { color: var(--accent); font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }

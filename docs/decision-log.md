@@ -109,3 +109,10 @@ See [Cosmic Model](./cosmic-model.md).
 - All bodies start in step (a deliberate conjunction at beat 0), which is not the real current configuration. Two bodies within 0.08 beat count as a conjunction and get a small accent.
 - Pitch is the log-rank of the period on a three-octave pentatonic scale (shorter period = higher). Voices are synthesized per kind of body; no sample is stretched.
 - Data is a static table of sidereal periods. No ephemeris, no real-time tracking, no external API. Values that could not be checked against a primary table are listed as such in the cosmic model.
+
+## M2.1 — Today's configuration
+
+- The planet systems (inner, outer) can start from the real positions on a chosen date (default today) instead of all bodies in step. Positions come from Astronomy Engine; only the heliocentric ecliptic longitude is used. 12 o'clock is the March equinox direction, and a planet sounds each time its longitude passes 0 degrees.
+- The on-screen direction is clockwise to match the rest of the app, so it is a mirror image of the real direction seen from the north. This is stated on screen.
+- The date inside the music (start date plus the real time the beats stand for) is shown. Start date and compression are stopped-only; dates are limited to 1900-2100.
+- Systems without a position source (Earth system, Jupiter's moons) keep starting in step.
