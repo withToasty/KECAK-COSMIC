@@ -61,6 +61,7 @@ This document records the current design decisions that should be treated as the
 Implementation should follow:
 
 - [Specification](./specification.md)
+- [Beat Gesture Model](./beat-gesture-model.md)
 - [Kecak Rhythm Model](./kecak-rhythm-model.md)
 - [Concept](./concept.md)
 
