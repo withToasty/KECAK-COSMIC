@@ -383,18 +383,24 @@ type KecakPart =
   | 'lima-polos'
   | 'lima-sangsih'
 
+type Hit = {
+  active: boolean
+  accent: number
+}
+
 type Performer = {
   id: string
   name: string
   kecakPart: KecakPart
   voice: Voice
-  pattern: readonly (0 | 1)[]
+  pattern: readonly Hit[]
   active: boolean
   volume: number
+  groupSize: number
 }
 
 type Session = {
-  pulseBpm: number
+  tempoBpm: number // klempung beat BPM
   globalPulse: number
   playing: boolean
   performers: Performer[]
@@ -413,7 +419,7 @@ const position =
 ```ts
 const shouldPlay =
   performer.active &&
-  performer.pattern[position] === 1
+  performer.pattern[position].active
 ```
 
 ---
@@ -495,7 +501,19 @@ M0の8パートを「唯一の正しいケチャ」として扱わない。
 
 ---
 
-## 13. Sources
+## 13. M0での声部の解釈
+
+画面上では各パートを代表する人物を1人表示する。
+
+ただし内部概念としては、各 Performer は「1人の個人」ではなく **1つの声部グループ** として扱う。
+
+M0では `groupSize = 1` とするが、将来は同じパートを複数人が担う状態を表現できるようにする。
+
+これにより、人数差・音圧・わずかなタイミング差・複数テイクの声を後から追加しても、ケチャの集団性を壊さず拡張できる。
+
+---
+
+## 14. Sources
 
 Primary references used for this model:
 

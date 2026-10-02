@@ -25,6 +25,14 @@ This document records the current design decisions that should be treated as the
   8. Cak Lima — Sangsih
 - M0 prioritizes audible interlocking and timing stability over visual ornament.
 - COSMIC MODE should reuse the same visual grammar: rhythm ring -> orbital ring.
+- Tempo BPM represents the klempung beat. Because one klempung beat is four internal pulses, the scheduler runs internal pulses at 4x the displayed BPM.
+- The M0 eight-part preset is intentionally fully periodic every 16 internal pulses. Long-form non-repeating relationships are deferred to COSMIC MODE.
+- One visible performer represents one rhythmic voice/group internally, not necessarily one literal human. M0 uses groupSize = 1; future versions may expand a voice to multiple singers.
+- Audio clock is the source of truth; React state and animation follow it.
+- A newly joined voice enters at the current global-pulse position on the next scheduled pulse; joining never resets or waits for a fresh pattern cycle.
+- Same-pulse voices must be scheduled at the exact same AudioContext time.
+- Human voice samples should be replaceable and the player architecture should allow future round-robin variation.
+- Kecak preset patterns must live in dedicated source data, with source notes, so transcriptions can be revised without changing engine logic.
 
 ## Source of truth
 
