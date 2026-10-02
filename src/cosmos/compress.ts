@@ -28,14 +28,16 @@ export function realSecondsPerBeat(
 
 /**
  * Sound times (in beats from the start of beat `beat`, each in [0, 1)) of a body
- * with the given period. The first revolution begins at beat 0, so every body
- * sounds together once at the start and then drifts apart.
+ * with the given period. `phase` (0..1) is how much of its first revolution the
+ * body has already completed at beat 0: with 0 it sounds at beat 0 (all bodies
+ * start in step); with a real configuration its first sound comes after the
+ * remaining (1 - phase) of a revolution.
  */
-export function eventOffsetsInBeat(periodBeats: number, beat: number): number[] {
-  const first = Math.ceil(beat / periodBeats - 1e-9)
+export function eventOffsetsInBeat(periodBeats: number, beat: number, phase = 0): number[] {
+  const first = Math.ceil(beat / periodBeats + phase - 1e-9)
   const out: number[] = []
   for (let k = first; ; k++) {
-    const t = k * periodBeats - beat
+    const t = (k - phase) * periodBeats - beat
     if (t >= 1 - 1e-9) break
     out.push(Math.max(0, t))
   }
@@ -43,8 +45,8 @@ export function eventOffsetsInBeat(periodBeats: number, beat: number): number[] 
 }
 
 /** Fraction (0..1) of the current revolution at fractional beat position `pos`. */
-export function orbitFraction(pos: number, periodBeats: number): number {
-  const f = (pos / periodBeats) % 1
+export function orbitFraction(pos: number, periodBeats: number, phase = 0): number {
+  const f = (pos / periodBeats + phase) % 1
   return f < 0 ? f + 1 : f
 }
 
@@ -72,26 +74,28 @@ export function pitchHz(realPeriodSeconds: number, allPeriods: readonly number[]
 // --- alignment -----------------------------------------------------------------
 
 /**
- * The first moment (in beats, after the start) at which every period is again
- * within `tolerance` of a whole number of revolutions, i.e. all bodies sound
- * (nearly) together. Null when that does not happen within `maxBeats`.
+ * The first moment (in beats, after the start) at which every body is again
+ * within `tolerance` of the start of a revolution, i.e. all of them sound
+ * (nearly) together. `phases` are the starting fractions (default: all 0).
+ * Null when that does not happen within `maxBeats`.
  */
 export function nextRealignment(
   periodBeats: readonly number[],
   maxBeats: number,
   tolerance = 0.03,
+  phases: readonly number[] = periodBeats.map(() => 0),
 ): number | null {
   if (periodBeats.length < 2) return null
-  const lead = Math.min(...periodBeats)
-  for (let k = 1; k * lead <= maxBeats; k++) {
-    const t = k * lead
-    const aligned = periodBeats.every((p) => {
-      const f = (t / p) % 1
-      return Math.min(f, 1 - f) <= tolerance
-    })
+  const lead = periodBeats.indexOf(Math.min(...periodBeats))
+  const nearZero = (f: number) => Math.min(f, 1 - f) <= tolerance
+  // Candidate moments: every time the fastest body completes a revolution.
+  for (let k = 1; ; k++) {
+    const t = (k - phases[lead]) * periodBeats[lead]
+    if (t > maxBeats) return null
+    if (t <= 0) continue
+    const aligned = periodBeats.every((p, i) => nearZero((((t / p + phases[i]) % 1) + 1) % 1))
     if (aligned) return t
   }
-  return null
 }
 
 // --- display -------------------------------------------------------------------

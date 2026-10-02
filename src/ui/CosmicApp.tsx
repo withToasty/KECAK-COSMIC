@@ -20,6 +20,7 @@ export function CosmicApp() {
         bodies={bodies}
         voices={session.voices}
         periods={periods}
+        phases={session.phases}
         nextId={nextId}
         selectedId={selectedId}
         onSeat={(id) => {

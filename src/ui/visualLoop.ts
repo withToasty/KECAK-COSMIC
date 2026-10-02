@@ -19,9 +19,19 @@ export function startVisualLoop(root: HTMLElement): () => void {
     root.querySelectorAll<SVGCircleElement>('[data-body]').forEach((el) => {
       const period = Number(el.dataset.period)
       const r = Number(el.dataset.r)
-      const p = pointOnCircle(CENTER, CENTER, r, orbitFraction(pos, period) * Math.PI * 2)
+      const phase = Number(el.dataset.phase ?? 0)
+      const p = pointOnCircle(CENTER, CENTER, r, orbitFraction(pos, period, phase) * Math.PI * 2)
       el.setAttribute('cx', p.x.toFixed(2))
       el.setAttribute('cy', p.y.toFixed(2))
+    })
+    // The date inside the music: the start date plus the real time the beats stand for.
+    root.querySelectorAll<HTMLElement>('[data-simdate]').forEach((el) => {
+      const start = Number(el.dataset.startMs)
+      const spb = Number(el.dataset.secPerBeat)
+      if (!Number.isFinite(start) || !Number.isFinite(spb)) return
+      const ms = start + pos * spb * 1000
+      const text = Math.abs(ms) < 8.6e15 ? new Date(ms).toISOString().slice(0, 10) : ''
+      if (el.textContent !== text) el.textContent = text
     })
     let together = false
     for (const ev of engine.cosmicVisuals()) {

@@ -19,12 +19,13 @@ type Props = {
   bodies: CosmicBody[]
   voices: CosmicVoice[]
   periods: Map<string, number>
+  phases: Record<string, number>
   nextId: string | null
   selectedId: string | null
   onSeat: (id: string) => void
 }
 
-export function CosmicView({ bodies, voices, periods, nextId, selectedId, onSeat }: Props) {
+export function CosmicView({ bodies, voices, periods, phases, nextId, selectedId, onSeat }: Props) {
   const count = bodies.length
   const byId = new Map(voices.map((v) => [v.id, v]))
   return (
@@ -44,6 +45,7 @@ export function CosmicView({ bodies, voices, periods, nextId, selectedId, onSeat
               <circle
                 data-body={b.id}
                 data-period={periods.get(b.id)}
+                data-phase={phases[b.id] ?? 0}
                 data-r={r}
                 className={`marker body ${b.sourceType}`}
                 style={v.muted ? { opacity: 0.35 } : undefined}

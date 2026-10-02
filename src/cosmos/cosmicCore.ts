@@ -12,6 +12,7 @@ import {
 } from './bodies'
 import { eventOffsetsInBeat, periodsInBeats, pitchHz } from './compress'
 import { clampTempo } from '../engine/session'
+import { parseDate, isDateInRange, phasesForDate, supportsEphemeris } from './ephemeris'
 
 export type CosmicVoice = {
   id: string
@@ -29,6 +30,10 @@ export type CosmicSession = {
   globalBeat: number
   playing: boolean
   voices: CosmicVoice[]
+  /** `YYYY-MM-DD` when the planets start from their real positions; null = all start in step. */
+  startDate: string | null
+  /** Starting fraction of a revolution per body (empty when startDate is null). */
+  phases: Record<string, number>
 }
 
 export type CosmicTrigger = {
@@ -73,6 +78,8 @@ export function createCosmicSession(systemId: SystemId = 'jupiter'): CosmicSessi
     globalBeat: 0,
     playing: false,
     voices: ordered.map((b, i) => ({ id: b.id, joined: i === 0, muted: false, volume: 1 })),
+    startDate: null,
+    phases: {},
   }
 }
 
@@ -222,6 +229,26 @@ export class CosmicCore {
     return true
   }
 
+  /**
+   * Start from the real positions of the planets on `date` (`YYYY-MM-DD`), or
+   * from all bodies in step (null). Stopped only, like compression. False when
+   * the system has no ephemeris or the date is invalid / out of range.
+   */
+  setStartDate(date: string | null): boolean {
+    if (this.session.playing) return false
+    if (date === null) {
+      this.session = { ...this.session, startDate: null, phases: {} }
+      this.commit()
+      return true
+    }
+    const parsed = parseDate(date)
+    if (!parsed || !isDateInRange(date) || !supportsEphemeris(this.session.systemId)) return false
+    const phases = phasesForDate(this.session.voices.map((v) => v.id), parsed)
+    this.session = { ...this.session, startDate: date, phases }
+    this.commit()
+    return true
+  }
+
   /** Switch system: a fresh session. Caller stops audio first. */
   setSystem(id: SystemId): void {
     if (!COSMIC_SYSTEMS.some((s) => s.id === id)) return
@@ -252,7 +279,7 @@ export class CosmicCore {
     for (const body of bodies) {
       const v = voices.get(body.id)!
       if (!v.joined || v.muted) continue
-      for (const offset of eventOffsetsInBeat(periods.get(body.id)!, beat)) {
+      for (const offset of eventOffsetsInBeat(periods.get(body.id)!, beat, this.session.phases[body.id] ?? 0)) {
         raw.push({ body, offset })
       }
     }
