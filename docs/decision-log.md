@@ -33,6 +33,23 @@ This document records the current design decisions that should be treated as the
 - Same-pulse voices must be scheduled at the exact same AudioContext time.
 - Human voice samples should be replaceable and the player architecture should allow future round-robin variation.
 - Kecak preset patterns must live in dedicated source data, with source notes, so transcriptions can be revised without changing engine logic.
+- All rhythmic orbits share one center. Entry 1 is the innermost orbit and Entry 8 the outermost; node 0 is at 12 o'clock and motion is clockwise.
+- The UI uses joined / muted as distinct states. The ambiguous active state is not used.
+- START evaluates pulse 0 immediately, so pulse-0 hits sound at transport start.
+- STOP returns time to pulse 0 but preserves joined, muted, volume, and tempo state.
+- RESET restores the complete initial session: tempo 120, only Juru Klempung joined, all voices unmuted, preset volumes, rotation 0.
+- M0 has no pause/resume. Reload is equivalent to RESET.
+- JOIN is strictly sequential in M0; joined voices cannot leave, only mute.
+- While playing, JOIN and MUTE state changes take effect on the next internal-pulse boundary.
+- While playing, tempo changes take effect on the next klempung-beat boundary; the latest pending tempo wins.
+- Tone.js is the M0 scheduler; SVG is the M0 orbit renderer. Canvas/WebGL are intentionally excluded from M0.
+- If the page becomes hidden during playback, M0 automatically stops and returns to pulse 0 while preserving the current joined/muted/volume/tempo state.
+- The audio master chain includes headroom and a safety limiter from M0.
+- Public-repo audio assets must have explicit provenance and reuse rights; unknown-origin samples are not committed.
+- Pulse 0–15 behavior for the complete eight-voice preset is frozen as a test fixture and must pass before M0 is considered complete.
+- All eight orbit outlines are visible from startup; unjoined voices hide their nodes and moving markers until joined.
+- Voice-to-orbit mapping is conveyed structurally with labels, not by color alone.
+- Derived values such as joinedCount are computed from performer state rather than stored separately.
 
 ## Source of truth
 

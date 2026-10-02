@@ -68,7 +68,7 @@ on    half
 
 ## 3. 円のルール
 
-各演奏者は、自分専用の円形シーケンサーを持つ。
+各声部は、自分専用の円形シーケンサーを持つ。ただし **すべての軌道は同じ中心を共有する同心円** とする。
 
 例: 8 pulse pattern
 
@@ -80,7 +80,7 @@ on    half
        4
 ```
 
-global pulse が1つ進むたびに、演奏者の現在位置も1 node進む。
+global pulse が1つ進むたびに、各声部の現在位置も1 node進む。node 0 は12時方向、進行方向は時計回り。
 
 現在位置が active node に到達した瞬間だけ発声する。
 
@@ -348,7 +348,7 @@ cak telu の3声 interlock が完成する。
 
 ## 8. 円の見え方
 
-各演奏者の orbit の node 数は patternLength と一致させる。
+各声部の orbit の node 数は patternLength と一致させる。Entry 1 を最内周、Entry 8 を最外周とする。
 
 - 4 pulse part → 4 node ring
 - 8 pulse part → 8 node ring
@@ -390,17 +390,21 @@ type Hit = {
 
 type Performer = {
   id: string
+  entry: number
   name: string
   kecakPart: KecakPart
   voice: Voice
   pattern: readonly Hit[]
-  active: boolean
+  rotation: number
+  joined: boolean
+  muted: boolean
   volume: number
   groupSize: number
 }
 
 type Session = {
   tempoBpm: number // klempung beat BPM
+  pendingTempoBpm: number | null
   globalPulse: number
   playing: boolean
   performers: Performer[]
@@ -411,14 +415,16 @@ type Session = {
 
 ```ts
 const position =
-  globalPulse % performer.pattern.length
+  (globalPulse + performer.rotation) %
+  performer.pattern.length
 ```
 
 発声:
 
 ```ts
 const shouldPlay =
-  performer.active &&
+  performer.joined &&
+  !performer.muted &&
   performer.pattern[position].active
 ```
 
@@ -508,6 +514,8 @@ M0の8パートを「唯一の正しいケチャ」として扱わない。
 ただし内部概念としては、各 Performer は「1人の個人」ではなく **1つの声部グループ** として扱う。
 
 M0では `groupSize = 1` とするが、将来は同じパートを複数人が担う状態を表現できるようにする。
+
+M0の状態は `joined` と `muted` で表現し、`active` という曖昧な状態名は使わない。
 
 これにより、人数差・音圧・わずかなタイミング差・複数テイクの声を後から追加しても、ケチャの集団性を壊さず拡張できる。
 
