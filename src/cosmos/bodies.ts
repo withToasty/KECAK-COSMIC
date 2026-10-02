@@ -70,8 +70,8 @@ export const COSMIC_BODIES: readonly CosmicBody[] = [
   { id: 'mars', name: 'Mars', nameJa: '火星', sourceType: 'planet', realPeriodSeconds: 686.98 * DAY, shortLabel: 'MAR', note: '公転周期 686.98日', precision: 'exact' },
   { id: 'jupiter', name: 'Jupiter', nameJa: '木星', sourceType: 'planet', realPeriodSeconds: 4332.59 * DAY, shortLabel: 'JUP', note: '公転周期 4332.6日(約11.86年)', precision: 'exact' },
   { id: 'saturn', name: 'Saturn', nameJa: '土星', sourceType: 'planet', realPeriodSeconds: 10759.22 * DAY, shortLabel: 'SAT', note: '公転周期 10759日(約29.46年)', precision: 'exact' },
-  { id: 'uranus', name: 'Uranus', nameJa: '天王星', sourceType: 'planet', realPeriodSeconds: 30688.5 * DAY, shortLabel: 'URA', note: '公転周期 30688日(約84.0年)', precision: 'exact' },
-  { id: 'neptune', name: 'Neptune', nameJa: '海王星', sourceType: 'planet', realPeriodSeconds: 60182 * DAY, shortLabel: 'NEP', note: '公転周期 60182日(約164.8年)', precision: 'exact' },
+  { id: 'uranus', name: 'Uranus', nameJa: '天王星', sourceType: 'planet', realPeriodSeconds: 30685.4 * DAY, shortLabel: 'URA', note: '公転周期 30685日(約84.0年)。資料により数日ずれる(NASA の表の値)', precision: 'exact' },
+  { id: 'neptune', name: 'Neptune', nameJa: '海王星', sourceType: 'planet', realPeriodSeconds: 60189.018 * DAY, shortLabel: 'NEP', note: '公転周期 60189日(約164.8年)。資料により数日ずれる(NASA の表の値)', precision: 'exact' },
   // --- Galilean moons ------------------------------------------------------
   { id: 'io', name: 'Io', nameJa: 'イオ', sourceType: 'moon', realPeriodSeconds: 1.769138 * DAY, shortLabel: 'IO', note: '公転周期 1.769日', precision: 'exact' },
   { id: 'europa', name: 'Europa', nameJa: 'エウロパ', sourceType: 'moon', realPeriodSeconds: 3.551181 * DAY, shortLabel: 'EUR', note: '公転周期 3.551日(イオのほぼ2倍)', precision: 'exact' },
