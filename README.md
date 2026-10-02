@@ -22,6 +22,7 @@ KECAK-COSMIC は、ケチャのように複数の反復する声・リズムが�
 ## Documents
 
 - [Concept / 思想](docs/concept.md)
+- [Specification / 実装仕様](docs/specification.md)
 
 ## Status
 
