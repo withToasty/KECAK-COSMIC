@@ -34,7 +34,7 @@ This document records the current design decisions that should be treated as the
 - Human voice samples should be replaceable and the player architecture should allow future round-robin variation.
 - Kecak preset patterns must live in dedicated source data, with source notes, so transcriptions can be revised without changing engine logic.
 - All rhythmic orbits share one center. Entry 1 is the innermost orbit and Entry 8 the outermost; node 0 is at 12 o'clock and motion is clockwise.
-- The UI uses joined / muted as distinct states. The ambiguous active state is not used.
+- Performer state uses joined / muted only. Pattern hit state uses Hit.on, so performer participation and note activation are never represented by the same term.
 - START evaluates pulse 0 immediately, so pulse-0 hits sound at transport start.
 - STOP returns time to pulse 0 but preserves joined, muted, volume, and tempo state.
 - RESET restores the complete initial session: tempo 120, only Juru Klempung joined, all voices unmuted, preset volumes, rotation 0.
