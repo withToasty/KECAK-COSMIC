@@ -66,3 +66,17 @@ Implementation should follow:
 - [Concept](./concept.md)
 
 If these documents conflict, the order above is the precedence for M0 implementation details.
+
+## Cue (M0.1)
+
+- A manual CUE button adds a call-and-response section on top of the infinite beat: arm now, start at the next global-beat boundary (max one beat wait), call by Juru Klempung (2 beats), then a unison response by all joined unmuted voices (2 beats) that enters on the off-beat. See [Cue Model](./cue-model.md).
+- Cue never resets or pauses the global beat. Auto-arranged songs are deferred.
+
+## Implementation notes (M0.1 engine)
+
+- Engine follows the beat-gesture model: one Transport callback per global beat (`4n`), events expanded to audio times inside it. JOIN / MUTE / tempo take effect at the next beat boundary.
+- The eight presets are the legacy 4-grid strings migrated to BeatCell / VocalEvent (short cak = `cak-short`, 2 subticks; pung = 3 subticks). Musical content is unchanged; only the engine moved. Long (`cak-long`), double, triple and offset gestures are available in the engine and in the audition preset, but are not yet used by the Kecak preset.
+- Ensemble: Juru Klempung is a single voice; each cak part expands into 4 members with up to 14 ms of trailing timing spread and 8% gain spread, seeded per performer. Member 0 stays exactly on the grid.
+- Placeholder samples: 3 `cak-short` takes, 2 `cak-long` takes, 1 `pung`, all generated in this repository.
+- Two selectable arrangements share the same seats, roles and ensembles: `Legacy` (migrated single hits) and `Gesture` (arrangement draft with sustained `cak-long` on Besik Polos / Cak Lima Polos at beat 0, and a triple / late double / offset triple fill on the last beat of each Cak Telu part, all on a 4-beat cycle). Gesture is an arrangement for A/B listening, not a source transcription. Switching resets the session.
+- Placeholder samples start at full level on the first sample (no fade-in) so sustained cak sounds the instant it is triggered. The cue call layers a sustained cak over the pung so the otherwise near-silent call is audible on phone speakers. All players are created before START to avoid first-hit latency.

@@ -29,8 +29,13 @@ export type EnsembleProfile = {
   seed: number
 }
 
+export type Role = 'beat-keeper' | 'polos' | 'sangsih' | 'sanglot'
+
 export type Performer = {
   id: string
+  entry: number
+  name: string
+  role: Role
   pattern: VoicePattern
   rotationBeats: number
   joined: boolean

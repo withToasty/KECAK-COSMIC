@@ -17,6 +17,9 @@ const TEST_ENSEMBLE = {
 export const gestureAuditionPerformers: readonly Performer[] = [
   {
     id: 'pung',
+    entry: 1,
+    name: 'Pung',
+    role: 'beat-keeper',
     pattern: { beats: [PUNG] },
     rotationBeats: 0,
     joined: true,
@@ -26,6 +29,9 @@ export const gestureAuditionPerformers: readonly Performer[] = [
   },
   {
     id: 'cak-long',
+    entry: 2,
+    name: 'cak-long',
+    role: 'polos',
     pattern: { beats: [CAK_LONG] },
     rotationBeats: 0,
     joined: true,
@@ -35,6 +41,9 @@ export const gestureAuditionPerformers: readonly Performer[] = [
   },
   {
     id: 'cak-double',
+    entry: 3,
+    name: 'cak-double',
+    role: 'polos',
     pattern: { beats: [CAK_DOUBLE] },
     rotationBeats: 0,
     joined: true,
@@ -44,6 +53,9 @@ export const gestureAuditionPerformers: readonly Performer[] = [
   },
   {
     id: 'cak-triple',
+    entry: 4,
+    name: 'cak-triple',
+    role: 'polos',
     pattern: { beats: [CAK_TRIPLE] },
     rotationBeats: 0,
     joined: true,
@@ -53,6 +65,9 @@ export const gestureAuditionPerformers: readonly Performer[] = [
   },
   {
     id: 'cak-late-double',
+    entry: 5,
+    name: 'cak-late-double',
+    role: 'polos',
     pattern: { beats: [CAK_LATE_DOUBLE] },
     rotationBeats: 0,
     joined: true,

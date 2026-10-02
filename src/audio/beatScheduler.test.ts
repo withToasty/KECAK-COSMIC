@@ -21,6 +21,9 @@ function performer(
 ): Performer {
   return {
     id,
+    entry: 1,
+    name: id,
+    role: 'polos',
     pattern: { beats: [beat] },
     rotationBeats: 0,
     joined: true,

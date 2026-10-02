@@ -11,6 +11,9 @@ export type ScheduledVocalEvent = {
   durationSeconds: number
   gain: number
   offsetSubtick: number
+  /** Position of the event inside the performer's cycle, for visuals. */
+  beatIndex: number
+  eventIndex: number
 }
 
 export type CollectBeatEventsInput = {
@@ -50,7 +53,7 @@ export function collectBeatEvents({
 
     const beatCell = performer.pattern.beats[beatIndex]
 
-    for (const event of beatCell) {
+    for (const [eventIndex, event] of beatCell.entries()) {
       scheduled.push({
         performerId: performer.id,
         sampleId: event.sampleId,
@@ -61,6 +64,8 @@ export function collectBeatEvents({
           event.durationSubticks * secondsPerSubtick,
         gain: performer.volume * event.accent,
         offsetSubtick: event.offsetSubtick,
+        beatIndex,
+        eventIndex,
       })
     }
   }
