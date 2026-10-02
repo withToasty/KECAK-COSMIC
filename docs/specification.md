@@ -1,449 +1,480 @@
 # KECAK-COSMIC — Specification
 
-Version: v0.1  
+Version: v0.2  
 Status: Draft / Prototype specification
 
 この文書は「何を実装するか」を定義する。  
-思想・背景は [concept.md](./concept.md) を参照。
+思想・背景は [concept.md](./concept.md)、ケチャのリズム設計は [kecak-rhythm-model.md](./kecak-rhythm-model.md) を参照。
 
 ---
 
 ## 1. プロダクト概要
 
-KECAK-COSMIC は、複数の周期を重ねて音楽を作る Web アプリ。
+KECAK-COSMIC は、複数の反復パターンが1本の共通 pulse の上で回り続け、互いに噛み合うことで音楽を作る Web アプリ。
 
-最初の実装では、円形に座る複数の演奏者を操作し、それぞれに異なる発声周期を与えることでポリリズムを作る。
+M0では、人間の演奏者を円形に配置し、実際のケチャの interlocking / kotekan をもとにした8つのパートを一人ずつ参加させる。
 
-その後、演奏者の周期を人間が決める値から、月・惑星・人工衛星など実在する宇宙の周期へ置き換える。
-
----
-
-## 2. モード
-
-### 2.1 KECAK LOOP
-
-ユーザーが自由に周期を設定して演奏するモード。
-
-各演奏者は以下を持つ。
-
-- ON / OFF
-- 発声音
-- 周期
-- 位相
-- 音量
-
-複数の演奏者を同時に動かし、周期の重なりを聴く。
-
-### 2.2 COSMIC MODE
-
-宇宙に存在する周期データを使うモード。
-
-候補:
-
-- 月の公転
-- 地球の自転
-- 惑星の公転
-- ISS の周回
-- 人工衛星の周回
-
-元データを人間が聴ける時間へ圧縮し、KECAK LOOP と同じ音響エンジンへ入力する。
-
-COSMIC MODE は M0 では実装しない。
+将来の COSMIC MODE では、この「円」「周期」「現在位置」という同じUI文法を、月・惑星・人工衛星の軌道周期へ接続する。
 
 ---
 
-## 3. M0 — 最初に完成させるもの
+## 2. 時間モデル
 
-### 3.1 画面
+### 2.1 Global Pulse
 
-1画面のみ。
+小節で区切らない。
 
-中央に円形の演奏スペースを表示する。
+```
+0 1 2 3 4 5 6 7 8 9 10 ... ∞
+```
 
-その周囲に **8人の演奏者** を等間隔で配置する。
+START から STOP まで1本の pulse が永遠に進む。
 
-各演奏者は円の中心を向いて座っているように見せる。
+4/4、1小節目、2小節目、といった表示はM0では使わない。
 
-初期段階では人物はシンプルな図形・アイコンでよい。
+### 2.2 Internal Resolution
 
----
+M0では、
 
-## 4. 基本操作
+```
+1 klempung beat = 4 internal pulses
+```
 
-### 4.1 START / STOP
+とする。
 
-画面中央に再生ボタンを置く。
-
-START:
-
-- 全体クロック開始
-- ON になっている演奏者が、それぞれの周期で発声する
-
-STOP:
-
-- 全体クロック停止
-- 再生位置を先頭へ戻す
-
-### 4.2 演奏者をクリック
-
-演奏者をクリックすると設定パネルを開く。
-
-設定項目:
-
-- Active: ON / OFF
-- Voice
-- Cycle
-- Phase
-- Volume
+これを全パート共通の最小時間グリッドにする。
 
 ---
 
-## 5. Voice
+## 3. M0の8パート
 
-M0 では以下の4種類を用意する。
+M0 preset は以下。
 
-- cak
-- cek
-- tak
-- low
+| Entry | Part | Voice | Pattern length |
+|---:|---|---|---:|
+| 1 | Juru Klempung | pung | 4 |
+| 2 | Cak Besik — Polos | cak | 4 |
+| 3 | Cak Besik — Sangsih | cak | 4 |
+| 4 | Cak Telu — Polos | cak | 8 |
+| 5 | Cak Telu — Sanglot | cak | 8 |
+| 6 | Cak Telu — Sangsih | cak | 8 |
+| 7 | Cak Lima — Polos | cak | 16 |
+| 8 | Cak Lima — Sangsih | cak | 16 |
 
-実際の人声サンプルが未準備の場合は、Web Audio API で短いパーカッシブ音を生成して代用してよい。
+実際の pattern 配列は [kecak-rhythm-model.md](./kecak-rhythm-model.md) を正とする。
 
-後から音声ファイルへ差し替え可能な構造にする。
+これは「伝統的ケチャに固定8パートがある」という意味ではなく、実際のケチャ構造をM0用に縮約した preset。
 
 ---
 
-## 6. Cycle
+## 4. 初回体験
 
-演奏者が何拍ごとに鳴るかを指定する。
+8つの席は最初から円形に配置する。
 
-M0 の選択肢:
+ただし開始時に active なのは Entry 1 のみ。
 
-- 1
-- 2
-- 3
-- 4
-- 5
-- 7
-- 8
-- 11
-- 13
-- 16
+未参加者は暗いシルエットで表示する。
+
+ユーザーが次の人物をクリック、または `JOIN NEXT VOICE` を押すたびに、固定順で1人ずつ参加する。
+
+```
+1. Juru Klempung
+2. Besik Polos
+3. Besik Sangsih
+4. Telu Polos
+5. Telu Sanglot
+6. Telu Sangsih
+7. Lima Polos
+8. Lima Sangsih
+```
+
+参加しても global pulse は止めない・リセットしない。
+
+新しい演奏者は現在の global pulse 上の正しい位相位置から演奏へ加わる。
+
+---
+
+## 5. 円形UI
+
+### 5.1 全体
+
+8人は中央を向いて円形に座る。
+
+中央:
+
+- START / STOP
+- Pulse tempo
+- JOIN NEXT VOICE
+
+### 5.2 各演奏者の orbit
+
+各演奏者は小さな円形シーケンサーを持つ。
+
+node 数 = `pattern.length`
 
 例:
 
-- Cycle = 2 → 2拍ごとに発声
-- Cycle = 3 → 3拍ごとに発声
-- Cycle = 5 → 5拍ごとに発声
+- 4 pulse → 4 nodes
+- 8 pulse → 8 nodes
+- 16 pulse → 16 nodes
 
-異なる Cycle を同時に動かすことでポリリズムを作る。
+表記:
 
----
+- rest node = ○
+- active node = ●
+- current position = moving marker
 
-## 7. Phase
+current marker が ● に到達した瞬間に発声。
 
-周期の開始位置をずらす。
+### 5.3 円の意味
 
-値:
+円は装飾ではなく、周期を可視化したもの。
 
-- 0 〜 Cycle - 1
+M0では「リズムの軌道」。
 
-例:
-
-Cycle = 4  
-Phase = 0
-
-なら、
-
-1 / 5 / 9 / 13 ...
-
-で鳴る。
-
-Cycle = 4  
-Phase = 2
-
-なら、
-
-3 / 7 / 11 / 15 ...
-
-で鳴る。
+COSMIC MODEでは「天体・衛星の軌道」へそのまま意味を拡張する。
 
 ---
 
-## 8. Tempo
+## 6. START / STOP
 
-全体共通の BPM を持つ。
+### START
+
+- AudioContext を開始
+- globalPulse を進める
+- active performer の pattern を評価
+- 該当 node で発声
+- UI current marker を同期
+
+### STOP
+
+M0では:
+
+- transport 停止
+- globalPulse = 0
+- 全 performer の表示位置を初期位置へ戻す
+
+後のバージョンでは pause と reset を分けてもよい。
+
+---
+
+## 7. Tempo
+
+UI名は `Pulse Tempo`。
+
+内部では BPM 値を利用してよい。
 
 初期値:
 
+```
 120 BPM
-
-設定可能範囲:
-
-40 〜 240 BPM
-
-M0 では全演奏者が同じ BPM を共有する。
-
----
-
-## 9. 視覚フィードバック
-
-演奏者が発声した瞬間、その演奏者を短時間だけ強調表示する。
-
-例:
-
-- 少し大きくなる
-- 明るくなる
-- 円が広がる
-
-これにより、
-
-**どの周期が今鳴ったか**
-
-を目でも理解できるようにする。
-
-複数人が同時に発声した場合は、同時に強調する。
-
----
-
-## 10. 全体拍表示
-
-中央に現在の Beat を表示する。
-
-例:
-
-```
-BEAT
-37
 ```
 
-M0 では最低限、現在何拍目か分かればよい。
+範囲:
+
+```
+60–220 BPM
+```
+
+M0では全パートが同じ global pulse を共有する。
 
 ---
 
-## 11. 初期プリセット
+## 8. 発声
 
-初回起動時に以下の状態をセットする。
+M0で必要な voice:
 
-| Player | Voice | Cycle | Phase | Active |
-|---|---|---:|---:|---|
-| 1 | cak | 2 | 0 | ON |
-| 2 | cek | 3 | 0 | ON |
-| 3 | tak | 5 | 0 | ON |
-| 4 | low | 7 | 0 | ON |
-| 5 | cak | 4 | 1 | OFF |
-| 6 | cek | 8 | 3 | OFF |
-| 7 | tak | 11 | 0 | OFF |
-| 8 | low | 13 | 0 | OFF |
+- `cak`
+- `pung`
 
-START を押すだけで、最初から周期の重なりを体験できる状態にする。
+最初から `cek` / `tak` / `low` など創作音色を増やさない。
+
+まずケチャ由来の構造を確認する。
+
+### 音源優先順位
+
+1. 実際の短い人声サンプル
+2. 録音が未準備なら仮サンプル
+3. 最終手段として Web Audio API 生成音
+
+音声ファイルは差し替え可能にする。
 
 ---
 
-## 12. データモデル
-
-各演奏者は以下のデータを持つ。
+## 9. 発音判定
 
 ```ts
+const position =
+  globalPulse % performer.pattern.length
+
+const shouldPlay =
+  performer.active &&
+  performer.pattern[position] === 1
+```
+
+発声タイミングは UI の `setInterval` に依存させない。
+
+Audio scheduler を時間の正とする。
+
+---
+
+## 10. Phase
+
+M0では数値入力の Phase はUIに出さない。
+
+将来、orbit ring 自体を回転させることで位相を変える。
+
+内部:
+
+```ts
+const position =
+  (globalPulse + performer.rotation) %
+  performer.pattern.length
+```
+
+M0の preset では `rotation = 0`。
+
+---
+
+## 11. Performer 操作
+
+M0でユーザーができること:
+
+- 参加させる
+- active / mute
+- volume 調整
+- performer をクリックして pattern 名を見る
+
+M0では pattern 自体を編集しない。
+
+理由:
+
+まず「本物のケチャ由来の8パートを重ねた時に、どんな体験になるか」を検証する。
+
+自由編集はM1。
+
+---
+
+## 12. Performer Detail
+
+演奏者をクリックしたら小さな panel を表示。
+
+表示内容:
+
+- Part name
+- Role: polos / sangsih / sanglot / beat keeper
+- Pattern length
+- Voice
+- Volume
+- Mute
+- pattern ring の拡大表示
+
+説明例:
+
+```
+CAK TELU — SANGLOT
+
+8 pulses
+in-between voice
+
+Polos と Sangsih の間を埋める
+3声 interlock の中央パート
+```
+
+---
+
+## 13. 視覚フィードバック
+
+発声時:
+
+- current node を一瞬強調
+- performer 本体を軽く pulse
+- orbit ring を一瞬発光
+
+同時発声が起きた場合:
+
+- 該当する全 performer を同時に反応させる
+- 中央円もわずかに pulse させる
+
+「複数周期が重なった瞬間」が視覚でも分かるようにする。
+
+---
+
+## 14. データモデル
+
+```ts
+type Voice = 'cak' | 'pung'
+
+type KecakPart =
+  | 'klempung'
+  | 'besik-polos'
+  | 'besik-sangsih'
+  | 'telu-polos'
+  | 'telu-sanglot'
+  | 'telu-sangsih'
+  | 'lima-polos'
+  | 'lima-sangsih'
+
 type Performer = {
   id: string
   name: string
+  kecakPart: KecakPart
+  role: 'beat-keeper' | 'polos' | 'sangsih' | 'sanglot'
+  voice: Voice
+  pattern: readonly (0 | 1)[]
+  rotation: number
   active: boolean
-  voice: 'cak' | 'cek' | 'tak' | 'low'
-  cycle: number
-  phase: number
+  joined: boolean
   volume: number
 }
-```
 
-全体状態:
-
-```ts
 type Session = {
-  bpm: number
-  beat: number
+  pulseBpm: number
+  globalPulse: number
   playing: boolean
+  joinedCount: number
   performers: Performer[]
 }
 ```
 
 ---
 
-## 13. 発音判定
-
-各拍で、各演奏者について以下を判定する。
+## 15. 初期状態
 
 ```ts
-shouldPlay =
-  performer.active &&
-  (beat - performer.phase) % performer.cycle === 0
+{
+  pulseBpm: 120,
+  globalPulse: 0,
+  playing: false,
+  joinedCount: 1
+}
 ```
 
-ただし、
+Entry 1 の Juru Klempung のみ joined。
+
+START 後:
 
 ```
-beat >= phase
+pung . . . pung . . . pung ...
 ```
 
-の場合のみ発音する。
-
-UI 描画のフレームではなく、音声スケジューラ側の時間を基準にする。
+ここから一人ずつ増える。
 
 ---
 
-## 14. 音響エンジン
+## 16. 音響エンジン
 
-ブラウザ上で完結させる。
+推奨:
 
-M0:
-
+- Tone.js
 - Web Audio API
-- または Tone.js
 
-を使用する。
+構造:
 
-重要要件:
+```
+audio clock
+   ↓
+global pulse scheduler
+   ↓
+performer pattern evaluation
+   ↓
+sample trigger
+   ↓
+visual event
+```
 
-- 複数周期を長時間動かしても、目立つタイミングずれを起こさない
-- UI の `setInterval` を音声タイミングの基準にしない
-- 音声スケジューラと UI 表示を分離する
+音が主、UIは追従。
+
+重要:
+
+- long-running drift を極力避ける
+- 画面描画負荷で音がずれない
+- タブ復帰時の状態を壊さない
+- 同時発声を正確に揃える
 
 ---
 
-## 15. UI構成
+## 17. デザイン
 
-概念図:
-
-```
-             P1
-
-       P8          P2
-
-   P7                  P3
-
-
-          START
-        BPM 120
-         BEAT 1
-
-
-   P6                  P4
-
-             P5
-```
-
-スマートフォンでは円全体が1画面に収まるようにする。
-
----
-
-## 16. デザイン方針
-
-M0 では装飾を作り込みすぎない。
+M0の目的は「宇宙っぽい画面」を作ることではない。
 
 優先順位:
 
-1. 周期が重なる
-2. 音が気持ちよく鳴る
-3. 誰が鳴ったか分かる
+1. interlocking が聴こえる
+2. 一人ずつ加わることで複雑さが立ち上がる
+3. 円を見ると pattern が理解できる
 4. 操作が直感的
 5. 見た目
 
 背景は暗色。
 
-演奏者と軌道を感じさせる円形レイアウトにする。
+人物・node・orbit を主役にする。
 
-「宇宙っぽい」星空エフェクトなどは M0 では必須にしない。
-
----
-
-## 17. 技術構成
-
-M0 推奨:
-
-- Vite
-- TypeScript
-- React
-- Tone.js
-- CSS
-
-バックエンドなし。
-
-すべてブラウザ上で動作する静的 Web アプリとする。
+星空、星雲、派手なパーティクルは後回し。
 
 ---
 
-## 18. ディレクトリ案
+## 18. モバイル
 
-```
-src/
-├─ App.tsx
-├─ components/
-│  ├─ PerformerCircle.tsx
-│  ├─ Performer.tsx
-│  ├─ PerformerPanel.tsx
-│  └─ Transport.tsx
-├─ audio/
-│  ├─ engine.ts
-│  └─ voices.ts
-├─ data/
-│  └─ presets.ts
-├─ types/
-│  └─ session.ts
-└─ styles/
-   └─ main.css
-```
+スマートフォン縦画面を基準の1つとする。
+
+条件:
+
+- 8人の円が1画面内に収まる
+- current marker が見える
+- 人物タップ領域は十分確保
+- panel を開いても中央 transport を完全には隠さない
 
 ---
 
 ## 19. M0 完了条件
 
-以下がすべてできれば M0 完了。
+以下がすべて成立すればM0完了。
 
-- Web ページを開ける
-- 円形に8人表示される
-- START / STOP ができる
-- BPM を変更できる
-- 各演奏者を ON / OFF できる
-- Voice を変更できる
-- Cycle を変更できる
-- Phase を変更できる
-- 複数の周期が同時に安定して再生される
-- 発声時に該当演奏者が視覚的に反応する
-- スマートフォンでも操作できる
+- 1本の global pulse が安定して流れる
+- 8席が円形に表示される
+- 初期状態は1人のみ
+- 1人ずつ順番に参加させられる
+- 各 performer が定義済み pattern を永遠に繰り返す
+- 4 / 8 / 16 pulse の ring が正しく回る
+- active node でのみ発声する
+- cak / pung が鳴る
+- 同時発声がずれない
+- 発声時に performer が視覚反応する
+- STOP で初期位置へ戻る
+- スマートフォンで操作できる
 
 ---
 
-## 20. M1 — 演奏として面白くする
+## 20. M1 — 楽器化
 
-M0 完成後に追加する。
+M0後に追加候補:
 
-候補:
-
-- 演奏者を追加 / 削除
+- pattern node を直接 ON / OFF
+- ring drag による rotation / phase
+- performer 追加 / 削除
 - Solo
-- Mute
-- 全体 Volume
-- ランダム生成
-- プリセット保存
-- URL 共有
-- Cycle の直接入力
-- 音声サンプル差し替え
-- 発声パターンの複数化
-- 位相を円上でドラッグして変更
-- ループ全体の長さ表示
-- 次に全員が重なるタイミングの表示
+- preset 保存
+- URL共有
+- pattern length 変更
+- voice 差し替え
+- Cak Nem
+- Cak Pitu / Ocel
+- Cak Lesung
+- Panyelah
+- Juru Gending
+- dynamics cue
+- transition cue
+
+M1で「ケチャ再現 preset」から「ケチャの原理を使う楽器」へ広げる。
 
 ---
 
 ## 21. M2 — COSMIC MODE
 
-KECAK LOOP が楽器として成立した後に実装する。
+KECAK LOOP の円形 time model を宇宙へ置き換える。
 
-### M2-1
-
-静的な天体周期データを用意する。
-
-例:
+### 21.1 Cosmic performer
 
 ```ts
 type CosmicPerformer = {
@@ -451,86 +482,78 @@ type CosmicPerformer = {
   name: string
   sourceType: 'planet' | 'moon' | 'satellite'
   realPeriodSeconds: number
+  compressedPeriodPulses: number
   voice: Voice
 }
 ```
 
-### M2-2
-
-時間圧縮率を設定する。
+### 21.2 変換
 
 ```
-real period
-    ↓
-time compression
-    ↓
-musical cycle
+real orbital period
+        ↓
+time compression rule
+        ↓
+human-scale period
+        ↓
+orbit revolution
+        ↓
+sound event
 ```
 
-### M2-3
+### 21.3 UI
 
-円形 UI 上の人間を天体へ置き換える。
+KECAK LOOP:
 
-例:
+```
+person + rhythm orbit
+```
 
-- Moon
-- Earth
-- Mars
-- Jupiter
-- ISS
+COSMIC MODE:
 
-### M2-4
+```
+celestial body + actual-looking orbit
+```
 
-各音について、
-
-- 元になった天体
-- 元周期
-- 圧縮率
-- 音楽上の周期
-
-を確認できるようにする。
+基本操作は共通。
 
 ---
 
-## 22. M0 ではやらないこと
-
-以下は意図的に後回しにする。
+## 22. M0ではやらないこと
 
 - ログイン
-- データベース
+- DB
 - SNS
-- 複数人リアルタイム演奏
-- AI 作曲
+- AI作曲
 - 3D
 - VR
-- 正確な軌道シミュレーション
-- リアルタイム人工衛星追跡
-- 天文学データ API 連携
-- DAW 相当の編集機能
+- realtime satellite tracking
+- external astronomy API
+- DAW機能
+- 自由な pattern editor
+- 正確な天体軌道描画
 
-まず、
+最初の検証は1つだけ。
 
-**異なる周期を重ねるだけで、本当に触っていて面白いか**
-
-を確認する。
+> **単純な役割を一人ずつ重ねるだけで、複雑な音楽が立ち上がる体験は面白いか。**
 
 ---
 
 ## 23. 開発順序
 
-実装は以下の順で進める。
+1. Vite + React + TypeScript
+2. global pulse scheduler
+3. cak / pung sample playback
+4. 1 performer + 1 orbit ring
+5. pattern node 判定
+6. 8席の円形配置
+7. 8 preset pattern 実装
+8. JOIN NEXT VOICE
+9. 発声 animation
+10. 同時発声 visual
+11. performer detail
+12. tempo
+13. mobile
+14. M0 test
 
-1. Vite + React + TypeScript を起動
-2. 円形に8人配置
-3. Tone.js で全体クロック作成
-4. 1人を一定周期で鳴らす
-5. 8人を別周期で鳴らす
-6. START / STOP
-7. Active / Cycle / Phase
-8. 発声時アニメーション
-9. Voice / Volume
-10. BPM
-11. モバイル調整
-12. M0 完了
-
-この順序では、デザインより先に **周期が実際に重なる音** を完成させる。
+デザインの前に、まず音で interlocking が成立することを確認する。
