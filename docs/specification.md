@@ -741,7 +741,7 @@ M0後の候補:
 - URL共有
 - pattern length 変更
 - round-robin voice
-- groupSize > 1
+- EnsembleProfile size / timing spread / gain spread editing
 - Cak Nem
 - Cak Pitu / Ocel
 - Cak Lesung
@@ -820,7 +820,7 @@ UI文法を共通化する。
 
 1. Vite + React + TypeScript + Tone.js
 2. Audio unlock
-3. quarter beat + 16n internal pulse scheduler
+3. global beat scheduler + 12-subtick event expansion
 4. PUNG 1声のみで pulse 0 / timing test
 5. shared-center SVG orbit 1本
 6. marker continuous animation
@@ -831,7 +831,7 @@ UI文法を共通化する。
 11. MUTE / Volume
 12. START / STOP / RESET
 13. Tempo boundary update
-14. visual hit feedback
+14. visual event / sustain feedback
 15. performer detail
 16. hidden-tab behavior
 17. mobile
