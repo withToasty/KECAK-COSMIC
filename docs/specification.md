@@ -731,6 +731,8 @@ M0.1のengine仕様を自動テスト可能にする。
 
 ## 20. M1 — 楽器化
 
+実装済みの範囲は [m1-instrument.md](./m1-instrument.md) を参照。出典が必要な声部(Cak Nem など)は未実装。
+
 M0後の候補:
 
 - pattern node の直接 ON / OFF

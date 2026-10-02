@@ -3,21 +3,27 @@ import { SUBTICKS_PER_BEAT, type Performer } from '../domain/rhythm'
 export const VIEW = 400
 export const CENTER = VIEW / 2
 export const ORBIT_INNER = 30
-export const ORBIT_STEP = 14
+export const ORBIT_STEP_MAX = 14
+export const ORBIT_OUTER = 128
 export const SEAT_RADIUS = 170
 export const AVATAR_R = 19
 
-/** Orbit radius for entry 1 (innermost) .. 8 (outermost). */
-export const orbitRadius = (entry: number) =>
-  ORBIT_INNER + (entry - 1) * ORBIT_STEP
+/** Gap between orbits: 14 for up to 8 voices, tighter when more are added. */
+export const orbitStep = (count: number) =>
+  Math.min(ORBIT_STEP_MAX, (ORBIT_OUTER - ORBIT_INNER) / Math.max(1, count - 1))
+
+/** Orbit radius for entry 1 (innermost) .. N (outermost). */
+export const orbitRadius = (entry: number, count: number) =>
+  ORBIT_INNER + (entry - 1) * orbitStep(count)
 
 /** Angle in radians; 0 = 12 o'clock, clockwise. */
 export function pointOnCircle(cx: number, cy: number, r: number, angle: number) {
   return { x: cx + r * Math.sin(angle), y: cy - r * Math.cos(angle) }
 }
 
-/** Seats sit every 45 degrees starting at 12 o'clock, clockwise by entry. */
-export const seatAngle = (entry: number) => ((entry - 1) / 8) * Math.PI * 2
+/** Seats are spread evenly (45 degrees for 8) from 12 o'clock, clockwise by entry. */
+export const seatAngle = (entry: number, count: number) =>
+  ((entry - 1) / count) * Math.PI * 2
 
 /** Position inside a cycle (in beats, fractional) -> angle. */
 export const cycleAngle = (beatPosition: number, cycleBeats: number) =>

@@ -80,3 +80,15 @@ If these documents conflict, the order above is the precedence for M0 implementa
 - Placeholder samples: 3 `cak-short` takes, 2 `cak-long` takes, 1 `pung`, all generated in this repository.
 - Two selectable arrangements share the same seats, roles and ensembles: `Legacy` (migrated single hits) and `Gesture` (arrangement draft with sustained `cak-long` on Besik Polos / Cak Lima Polos at beat 0, and a triple / late double / offset triple fill on the last beat of each Cak Telu part, all on a 4-beat cycle). Gesture is an arrangement for A/B listening, not a source transcription. Switching resets the session.
 - Placeholder samples start at full level on the first sample (no fade-in) so sustained cak sounds the instant it is triggered. The cue call layers a sustained cak over the pung so the otherwise near-silent call is audible on phone speakers. All players are created before START to avoid first-hit latency.
+
+## M1 — Instrument
+
+See [M1 Instrument](./m1-instrument.md).
+
+- The time model is unchanged (global beat, 12 subticks, BeatCell). M1 only adds ways to edit, share and save it.
+- Every edit made while playing (pattern, rotation, cycle length, solo, mute, join / leave, add / remove voice, dynamics, ensemble) takes effect on the next global-beat boundary; stopped edits are immediate. Volume applies to the next trigger.
+- M0's strictly sequential JOIN is relaxed: any seat can join in any order and joined voices can leave. `JOIN NEXT VOICE` still brings voices in seat order.
+- Solo overrides: when any joined voice is solo, only solo voices sound, including in cues.
+- User-made voices (max 12 voices in total) can be removed; preset voices can only leave or mute. Seats and orbits re-space to the voice count.
+- A share code is `k1.` + base64url(JSON); decoding validates type, range and count and rejects anything else. Saved presets live in localStorage and the app works without it.
+- Cak Nem / Pitu / Ocel / Lesung, Panyelah and Juru Gending are not added: they need transcription sources. Users can build such voices themselves with the editor.

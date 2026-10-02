@@ -29,7 +29,7 @@ export type EnsembleProfile = {
   seed: number
 }
 
-export type Role = 'beat-keeper' | 'polos' | 'sangsih' | 'sanglot'
+export type Role = 'beat-keeper' | 'polos' | 'sangsih' | 'sanglot' | 'custom'
 
 export type Performer = {
   id: string
@@ -40,6 +40,10 @@ export type Performer = {
   rotationBeats: number
   joined: boolean
   muted: boolean
+  /** M1: when any joined voice is solo, only solo voices sound. */
+  solo?: boolean
+  /** M1: user-made voice (can be removed). */
+  custom?: boolean
   volume: number
   ensemble: EnsembleProfile
 }

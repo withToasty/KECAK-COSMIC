@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { collectBeatEvents } from '../src/audio/beatScheduler'
 import { buildEnsemble } from '../src/audio/ensemble'
-import { CUE_CALL, CUE_RESPONSE } from '../src/data/cuePhrase'
+import { CUES } from '../src/data/cuePhrase'
 import { gestureAuditionPerformers } from '../src/data/gestureAuditionPreset'
 import { presetPattern } from '../src/data/kecakPresets'
 import { PRESET_SETS } from '../src/data/presetSets'
@@ -267,12 +267,12 @@ describe('CUE (docs/cue-model.md)', () => {
     // call (2 beats): beat-keeper only, offsets from CUE_CALL
     cue.slice(0, 2).forEach((ev, i) => {
       expect(ids(ev.events).every((id) => id === 'klempung')).toBe(true)
-      expect(ev.events.map((e) => e.offsetSubtick)).toEqual(CUE_CALL[i].map((e) => e.offsetSubtick))
+      expect(ev.events.map((e) => e.offsetSubtick)).toEqual(CUES.call.call[i].map((e) => e.offsetSubtick))
     })
     expect(core.getSession().cue).toBe('response')
     // response (2 beats): all 8 voices at each offset, first hit on subtick 6 (the off-beat)
     cue.slice(2).forEach((ev, i) => {
-      for (const e of CUE_RESPONSE[i]) {
+      for (const e of CUES.call.response[i]) {
         expect(ev.events.filter((x) => x.offsetSubtick === e.offsetSubtick)).toHaveLength(8)
       }
     })

@@ -7,11 +7,32 @@ import {
   type ScheduledVocalEvent,
 } from '../audio/beatScheduler'
 import { buildEnsemble, type EnsembleMember } from '../audio/ensemble'
-import { CUE_BEATS, CUE_CALL, CUE_RESPONSE } from '../data/cuePhrase'
-import type { Performer } from '../domain/rhythm'
+import { CUES, CUE_BEATS, CUE_CALL_BEATS, type CueDef } from '../data/cuePhrase'
 import type { PresetSet } from '../data/presetSets'
-import { clampTempo, createSession, joinedCount } from './session'
-import type { CuePhase, Session } from './types'
+import {
+  assertVoicePattern,
+  type EnsembleProfile,
+  type Performer,
+  type VoicePattern,
+} from '../domain/rhythm'
+import {
+  audiblePerformers,
+  clampEnsemble,
+  clampPattern,
+  clampTempo,
+  createCustomPerformer,
+  createSession,
+  normalizeRotation,
+} from './session'
+import {
+  MAX_EVENTS_PER_BEAT,
+  MAX_PERFORMERS,
+  SOFT_GAIN,
+  type CueKind,
+  type CuePhase,
+  type Dynamics,
+  type Session,
+} from './types'
 
 /** One sample trigger (one ensemble member of one vocal event). */
 export type MemberTrigger = {
@@ -35,9 +56,8 @@ export type BeatEvent = {
   events: ScheduledVocalEvent[]
 }
 
-type Command =
-  | { type: 'join' }
-  | { type: 'mute'; id: string; muted: boolean }
+/** A session edit: applied at once when stopped, on the next beat boundary when playing. */
+type Edit = (s: Session) => Session
 
 const TIMELINE_LIMIT = 8
 
@@ -45,10 +65,11 @@ export class EngineCore {
   private session: Session = createSession()
   private presetSet: PresetSet | null = null
   private beat = 0
-  private queue: Command[] = []
-  private pendingJoins = 0
-  private cueArmed = false
+  private queue: Edit[] = []
+  private pendingJoinIds = new Set<string>()
+  private cueArmed: CueKind | null = null
   private cueStart: number | null = null
+  private cueRunning: CueKind | null = null
   private timeline: { beat: number; time: number; secondsPerBeat: number }[] = []
   private visual: ScheduledVocalEvent[] = []
   private members = new Map<string, EnsembleMember[]>()
@@ -85,12 +106,13 @@ export class EngineCore {
   /** STOP: back to beat 0, keep joined / muted / volume / tempo. */
   markStopped(): void {
     this.clearCue()
-    this.applyQueue()
+    this.flushQueue()
     const pending = this.session.pendingTempoBpm
     this.session = {
       ...this.session,
       playing: false,
       cue: 'idle',
+      cueKind: null,
       tempoBpm: pending ?? this.session.tempoBpm,
       pendingTempoBpm: null,
     }
@@ -107,7 +129,7 @@ export class EngineCore {
       : createSession()
     this.members.clear()
     this.queue = []
-    this.pendingJoins = 0
+    this.pendingJoinIds.clear()
     this.clearCue()
     this.beat = 0
     this.timeline = []
@@ -121,49 +143,159 @@ export class EngineCore {
     this.reset()
   }
 
+  /** Replace the whole arrangement (saved preset / share code). Caller stops audio first. */
+  loadArrangement(a: {
+    tempoBpm: number
+    dynamics: Dynamics
+    performers: Performer[]
+    presetSet?: string
+  }): void {
+    this.session = {
+      ...createSession([], a.presetSet ?? 'custom'),
+      tempoBpm: clampTempo(a.tempoBpm),
+      dynamics: a.dynamics,
+      performers: a.performers.map((p, i) => ({ ...p, entry: i + 1 })),
+    }
+    this.members.clear()
+    this.queue = []
+    this.pendingJoinIds.clear()
+    this.clearCue()
+    this.beat = 0
+    this.timeline = []
+    this.visual = []
+    this.commit()
+  }
+
   private clearCue(): void {
-    this.cueArmed = false
+    this.cueArmed = null
     this.cueStart = null
+    this.cueRunning = null
   }
 
-  // --- commands ------------------------------------------------------------
+  // --- edits (immediate when stopped, beat boundary when playing) ------------
 
-  /** Next voice that can be joined (strictly sequential), if any. */
-  nextJoinable(): Performer | undefined {
-    return this.session.performers[joinedCount(this.session) + this.pendingJoins]
-  }
-
-  join(): boolean {
-    if (!this.nextJoinable()) return false
+  private edit(fn: Edit): void {
     if (!this.session.playing) {
-      this.applyJoin()
+      this.session = fn(this.session)
       this.commit()
     } else {
-      this.queue.push({ type: 'join' })
-      this.pendingJoins++
+      this.queue.push(fn)
     }
+  }
+
+  private flushQueue(): boolean {
+    if (this.queue.length === 0) return false
+    for (const fn of this.queue) this.session = fn(this.session)
+    this.queue = []
+    this.pendingJoinIds.clear()
     return true
   }
 
-  setMuted(id: string, muted: boolean): void {
-    if (!this.session.playing) {
-      this.applyMute(id, muted)
-      this.commit()
-    } else {
-      this.queue.push({ type: 'mute', id, muted })
-    }
+  private mapPerformer(id: string, fn: (p: Performer) => Performer): Edit {
+    return (s) => ({
+      ...s,
+      performers: s.performers.map((p) => (p.id === id ? fn(p) : p)),
+    })
   }
 
-  /** Volume applies immediately (the audio layer ramps the gain). */
+  /** Next voice that the `JOIN NEXT VOICE` button would bring in. */
+  nextJoinable(): Performer | undefined {
+    return this.session.performers.find(
+      (p) => !p.joined && !this.pendingJoinIds.has(p.id),
+    )
+  }
+
+  /** Join a specific voice, or the next one in seat order. */
+  join(id?: string): boolean {
+    const target = id
+      ? this.session.performers.find((p) => p.id === id)
+      : this.nextJoinable()
+    if (!target || target.joined || this.pendingJoinIds.has(target.id)) return false
+    this.pendingJoinIds.add(target.id)
+    this.edit(this.mapPerformer(target.id, (p) => ({ ...p, joined: true })))
+    return true
+  }
+
+  leave(id: string): void {
+    this.edit(
+      this.mapPerformer(id, (p) =>
+        p.joined ? { ...p, joined: false, muted: false, solo: false } : p,
+      ),
+    )
+  }
+
+  setMuted(id: string, muted: boolean): void {
+    this.edit(this.mapPerformer(id, (p) => (p.joined ? { ...p, muted } : p)))
+  }
+
+  setSolo(id: string, solo: boolean): void {
+    this.edit(this.mapPerformer(id, (p) => (p.joined ? { ...p, solo } : p)))
+  }
+
+  /** Volume applies immediately (the next trigger uses it). */
   setVolume(id: string, volume: number): void {
     const v = Math.min(1, Math.max(0, volume))
-    this.session = {
-      ...this.session,
-      performers: this.session.performers.map((p) =>
-        p.id === id ? { ...p, volume: v } : p,
-      ),
-    }
+    this.session = this.mapPerformer(id, (p) => ({ ...p, volume: v }))(this.session)
     this.commit()
+  }
+
+  setPattern(id: string, pattern: VoicePattern): void {
+    const next = clampPattern(pattern)
+    assertVoicePattern(next)
+    for (const cell of next.beats) {
+      if (cell.length > MAX_EVENTS_PER_BEAT) throw new Error('too many events in a beat')
+    }
+    this.edit(
+      this.mapPerformer(id, (p) => ({
+        ...p,
+        pattern: next,
+        rotationBeats: normalizeRotation(p.rotationBeats, next.beats.length),
+      })),
+    )
+  }
+
+  setRotation(id: string, rotationBeats: number): void {
+    this.edit(
+      this.mapPerformer(id, (p) => ({
+        ...p,
+        rotationBeats: normalizeRotation(rotationBeats, p.pattern.beats.length),
+      })),
+    )
+  }
+
+  setEnsemble(id: string, ensemble: EnsembleProfile): void {
+    const next = clampEnsemble(ensemble)
+    this.edit(this.mapPerformer(id, (p) => ({ ...p, ensemble: next })))
+  }
+
+  /** Add a user-made voice (a single short cak on the beat). */
+  addVoice(): boolean {
+    if (this.session.performers.length >= MAX_PERFORMERS) return false
+    this.edit((s) => {
+      if (s.performers.length >= MAX_PERFORMERS) return s
+      const ids = s.performers.map((p) => p.id)
+      const voice = createCustomPerformer(s.performers.length + 1, ids)
+      return { ...s, performers: [...s.performers, voice] }
+    })
+    return true
+  }
+
+  /** Remove a user-made voice. Preset voices can only leave or mute. */
+  removeVoice(id: string): void {
+    this.edit((s) => {
+      const target = s.performers.find((p) => p.id === id)
+      if (!target?.custom) return s
+      return {
+        ...s,
+        performers: s.performers
+          .filter((p) => p.id !== id)
+          .map((p, i) => ({ ...p, entry: i + 1 })),
+      }
+    })
+  }
+
+  setDynamics(dynamics: Dynamics): void {
+    this.edit((s) => ({ ...s, dynamics }))
   }
 
   setTempo(bpm: number): void {
@@ -177,44 +309,20 @@ export class EngineCore {
     this.commit()
   }
 
-  /** Arm a cue (starts at the next beat boundary); toggles while armed. */
-  toggleCue(): void {
+  /**
+   * Arm a cue (starts at the next beat boundary). Pressing the armed cue again
+   * cancels it; pressing the other cue while armed switches to it.
+   */
+  toggleCue(kind: CueKind = 'call'): void {
     if (!this.session.playing) return
     if (this.cueStart !== null) return // a cue is already running
-    this.cueArmed = !this.cueArmed
-    this.session = { ...this.session, cue: this.cueArmed ? 'armed' : 'idle' }
+    this.cueArmed = this.cueArmed === kind ? null : kind
+    this.session = {
+      ...this.session,
+      cue: this.cueArmed ? 'armed' : 'idle',
+      cueKind: this.cueArmed,
+    }
     this.commit()
-  }
-
-  private applyJoin(): void {
-    const target = this.session.performers.find((p) => !p.joined)
-    if (!target) return
-    this.session = {
-      ...this.session,
-      performers: this.session.performers.map((p) =>
-        p.id === target.id ? { ...p, joined: true } : p,
-      ),
-    }
-  }
-
-  private applyMute(id: string, muted: boolean): void {
-    this.session = {
-      ...this.session,
-      performers: this.session.performers.map((p) =>
-        p.id === id && p.joined ? { ...p, muted } : p,
-      ),
-    }
-  }
-
-  private applyQueue(): boolean {
-    if (this.queue.length === 0) return false
-    for (const cmd of this.queue) {
-      if (cmd.type === 'join') this.applyJoin()
-      else this.applyMute(cmd.id, cmd.muted)
-    }
-    this.queue = []
-    this.pendingJoins = 0
-    return true
   }
 
   // --- beat ----------------------------------------------------------------
@@ -222,11 +330,11 @@ export class EngineCore {
   /**
    * Called from the audio clock once per global beat. The first call after
    * markStarted() is beat 0 and sounds at the transport start time.
-   * JOIN / MUTE / tempo requests take effect here, on the beat boundary.
+   * Every edit / tempo request takes effect here, on the beat boundary.
    */
   onBeat(beatTime: number): BeatEvent {
     const beat = this.beat
-    let changed = this.applyQueue()
+    let changed = this.flushQueue()
 
     const pending = this.session.pendingTempoBpm
     if (pending !== null) {
@@ -239,22 +347,26 @@ export class EngineCore {
 
     if (this.cueStart !== null && beat - this.cueStart >= CUE_BEATS) {
       this.cueStart = null
+      this.cueRunning = null
     }
     if (this.cueArmed && this.cueStart === null) {
-      this.cueArmed = false
+      this.cueRunning = this.cueArmed
+      this.cueArmed = null
       this.cueStart = beat
     }
     let phase: CuePhase = this.cueArmed ? 'armed' : 'idle'
-    let performers: readonly Performer[] = this.session.performers
+    const kind = this.cueRunning ?? this.cueArmed
+    const audible = audiblePerformers(this.session.performers)
+    let performers: readonly Performer[] = audible
     let globalBeat = beat
-    if (this.cueStart !== null) {
+    if (this.cueStart !== null && this.cueRunning) {
       const rel = beat - this.cueStart
-      phase = rel < CUE_CALL.length ? 'call' : 'response'
-      performers = cueVoices(this.session.performers, rel)
+      phase = rel < CUE_CALL_BEATS ? 'call' : 'response'
+      performers = cueVoices(audible, rel, CUES[this.cueRunning])
       globalBeat = 0
     }
-    if (phase !== this.session.cue) {
-      this.session = { ...this.session, cue: phase }
+    if (phase !== this.session.cue || kind !== this.session.cueKind) {
+      this.session = { ...this.session, cue: phase, cueKind: kind }
       changed = true
     }
 
@@ -264,6 +376,7 @@ export class EngineCore {
       tempoBpm,
       performers,
     })
+    const level = this.session.dynamics === 'soft' ? SOFT_GAIN : 1
     const byId = new Map(this.session.performers.map((p) => [p.id, p]))
     for (const event of events) {
       const profile = byId.get(event.performerId)!.ensemble
@@ -272,7 +385,7 @@ export class EngineCore {
           event,
           memberIndex: m.memberIndex,
           time: event.audioTime + m.timeOffsetSeconds,
-          gain: event.gain * m.gainMultiplier,
+          gain: event.gain * m.gainMultiplier * level,
         })
       }
     }
@@ -286,11 +399,12 @@ export class EngineCore {
     return { beat, time: beatTime, secondsPerBeat, events }
   }
 
-  private membersFor(id: string, profile: Performer['ensemble']): EnsembleMember[] {
-    let m = this.members.get(id)
+  private membersFor(id: string, profile: EnsembleProfile): EnsembleMember[] {
+    const key = `${id}|${profile.size}|${profile.timingSpreadMs}|${profile.gainSpread}|${profile.seed}`
+    let m = this.members.get(key)
     if (!m) {
       m = buildEnsemble(profile)
-      this.members.set(id, m)
+      this.members.set(key, m)
     }
     return m
   }
@@ -326,16 +440,20 @@ export class EngineCore {
 
 /**
  * Synthetic one-beat performers for a cue beat: the call is voiced by the beat
- * keeper only; the response by every joined, unmuted voice with its own sample.
+ * keeper only; the response by every audible voice with its own sample.
  */
-function cueVoices(performers: readonly Performer[], rel: number): Performer[] {
-  if (rel < CUE_CALL.length) {
-    return performers
+function cueVoices(
+  audible: readonly Performer[],
+  rel: number,
+  cue: CueDef,
+): Performer[] {
+  if (rel < CUE_CALL_BEATS) {
+    return audible
       .filter((p) => p.role === 'beat-keeper')
-      .map((p) => ({ ...p, pattern: { beats: [CUE_CALL[rel]] }, rotationBeats: 0 }))
+      .map((p) => ({ ...p, pattern: { beats: [cue.call[rel]] }, rotationBeats: 0 }))
   }
-  const cell = CUE_RESPONSE[rel - CUE_CALL.length]
-  return performers.map((p) => {
+  const cell = cue.response[rel - CUE_CALL_BEATS]
+  return audible.map((p) => {
     const sampleId = p.role === 'beat-keeper' ? ('pung' as const) : ('cak-short' as const)
     return {
       ...p,

@@ -1,20 +1,9 @@
-import { TEMPO_MAX, TEMPO_MIN, type Session } from '../engine/types'
+import { MAX_PERFORMERS, TEMPO_MAX, TEMPO_MIN, type Session } from '../engine/types'
 import { PRESET_SETS } from '../data/presetSets'
 import { engine } from './useEngine'
 
-const CUE_LABEL = {
-  idle: 'CUE',
-  armed: 'CUE ARMED',
-  call: 'CALL…',
-  response: 'RESPONSE!',
-} as const
-
-const CUE_HINT = {
-  idle: 'next beat',
-  armed: 'tap to cancel',
-  call: '',
-  response: '',
-} as const
+const CUE_NAME = { call: 'CUE', break: 'BREAK' } as const
+const CUE_RUNNING = { call: 'CALL…', response: 'RESPONSE!' } as const
 
 export function Controls({ session }: { session: Session }) {
   const joined = session.performers.filter((p) => p.joined).length
@@ -52,25 +41,52 @@ export function Controls({ session }: { session: Session }) {
         </button>
       </div>
 
-      <button
-        className={`cue ${session.cue}`}
-        disabled={!session.playing || session.cue === 'call' || session.cue === 'response'}
-        onClick={() => engine.core.toggleCue()}
-      >
-        {CUE_LABEL[session.cue]}
-        <span className="count">{CUE_HINT[session.cue]}</span>
-      </button>
+      <div className="cues">
+        {(['call', 'break'] as const).map((kind) => {
+          const mine = session.cueKind === kind
+          const phase = mine ? session.cue : 'idle'
+          const running = phase === 'call' || phase === 'response'
+          return (
+            <button
+              key={kind}
+              className={`cue ${phase}`}
+              disabled={!session.playing || (session.cue === 'call' || session.cue === 'response')}
+              aria-pressed={phase === 'armed'}
+              onClick={() => engine.core.toggleCue(kind)}
+            >
+              {running ? CUE_RUNNING[phase as 'call' | 'response'] : CUE_NAME[kind]}
+              <span className="count">{phase === 'armed' ? 'cancel' : ''}</span>
+            </button>
+          )
+        })}
+        <button
+          className={session.dynamics === 'soft' ? 'toggle on' : 'toggle'}
+          aria-pressed={session.dynamics === 'soft'}
+          onClick={() => engine.core.setDynamics(session.dynamics === 'soft' ? 'loud' : 'soft')}
+        >
+          SOFT
+        </button>
+      </div>
 
-      <button
-        className="join"
-        disabled={allJoined}
-        onClick={() => engine.core.join()}
-      >
-        {allJoined ? 'ALL VOICES JOINED' : 'JOIN NEXT VOICE'}
-        <span className="count">
-          {joined}/{session.performers.length}
-        </span>
-      </button>
+      <div className="joins">
+        <button
+          className="join"
+          disabled={allJoined}
+          onClick={() => engine.core.join()}
+        >
+          {allJoined ? 'ALL VOICES JOINED' : 'JOIN NEXT VOICE'}
+          <span className="count">
+            {joined}/{session.performers.length}
+          </span>
+        </button>
+        <button
+          className="ghost add"
+          disabled={session.performers.length >= MAX_PERFORMERS}
+          onClick={() => engine.core.addVoice()}
+        >
+          ＋ VOICE
+        </button>
+      </div>
 
       <label className="tempo">
         <span>

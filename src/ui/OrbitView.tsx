@@ -4,7 +4,7 @@ import { OrbitRing } from './OrbitRing'
 import {
   AVATAR_R,
   CENTER,
-  ORBIT_STEP,
+  orbitStep,
   SEAT_RADIUS,
   VIEW,
   orbitRadius,
@@ -13,7 +13,7 @@ import {
 } from './geometry'
 
 const labelOf = (p: Performer) =>
-  KECAK_PRESETS.find((x) => x.id === p.id)?.shortLabel ?? String(p.entry)
+  KECAK_PRESETS.find((x) => x.id === p.id)?.shortLabel ?? `V${p.entry}`
 
 type Props = {
   performers: Performer[]
@@ -24,6 +24,9 @@ type Props = {
 
 /** All voices share one center; Entry 1 = innermost orbit, Entry 8 = outermost. */
 export function OrbitView({ performers, nextEntry, selectedId, onSeat }: Props) {
+  const count = performers.length
+  const step = orbitStep(count)
+  const dense = count > 8
   return (
     <svg
       className="orbit-view"
@@ -40,7 +43,7 @@ export function OrbitView({ performers, nextEntry, selectedId, onSeat }: Props) 
       />
 
       {performers.map((p) => {
-        const r = orbitRadius(p.entry)
+        const r = orbitRadius(p.entry, count)
         return (
           <g key={p.id} className={p.joined ? 'orbit joined' : 'orbit'}>
             <circle
@@ -56,9 +59,9 @@ export function OrbitView({ performers, nextEntry, selectedId, onSeat }: Props) 
                 cx={CENTER}
                 cy={CENTER}
                 r={r}
-                point={2.6}
-                tick={2.4}
-                markerR={4.6}
+                point={dense ? 2 : 2.6}
+                tick={dense ? 1.8 : 2.4}
+                markerR={dense ? 3.6 : 4.6}
                 muted={p.muted}
               />
             )}
@@ -67,9 +70,9 @@ export function OrbitView({ performers, nextEntry, selectedId, onSeat }: Props) 
       })}
 
       {performers.map((p) => {
-        const a = seatAngle(p.entry)
+        const a = seatAngle(p.entry, count)
         const seat = pointOnCircle(CENTER, CENTER, SEAT_RADIUS, a)
-        const tag = pointOnCircle(CENTER, CENTER, orbitRadius(p.entry), a)
+        const tag = pointOnCircle(CENTER, CENTER, orbitRadius(p.entry, count), a)
         const stem = pointOnCircle(CENTER, CENTER, SEAT_RADIUS - AVATAR_R, a)
         const isNext = nextEntry === p.entry
         const cls = [
@@ -77,9 +80,10 @@ export function OrbitView({ performers, nextEntry, selectedId, onSeat }: Props) 
           p.joined ? 'joined' : 'idle',
           isNext ? 'next' : '',
           p.muted ? 'muted' : '',
+          p.solo ? 'solo' : '',
           selectedId === p.id ? 'selected' : '',
         ].join(' ')
-        const clickable = p.joined || isNext
+        const clickable = true // M1: any seat can join, in any order
         return (
           <g key={`seat-${p.id}`} className={cls}>
             {/* leader line ties the person to their orbit without relying on color */}
@@ -94,14 +98,16 @@ export function OrbitView({ performers, nextEntry, selectedId, onSeat }: Props) 
               className="orbit-tag"
               transform={`translate(${tag.x} ${tag.y})`}
             >
-              <circle r={ORBIT_STEP / 2 - 1.5} />
-              <text dy="0.35em">{p.entry}</text>
+              <circle r={Math.max(3, step / 2 - 1.5)} />
+              <text dy="0.35em" style={{ fontSize: Math.min(8, step * 0.58) }}>
+                {p.entry}
+              </text>
             </g>
             <g
               className="avatar-hit"
               role="button"
               tabIndex={clickable ? 0 : -1}
-              aria-label={`${p.entry}. ${p.name}${p.joined ? '' : isNext ? ' (join)' : ' (locked)'}`}
+              aria-label={`${p.entry}. ${p.name}${p.joined ? '' : isNext ? ' (join, next)' : ' (join)'}`}
               aria-disabled={!clickable}
               onClick={() => clickable && onSeat(p)}
               onKeyDown={(e) => {

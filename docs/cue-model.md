@@ -44,3 +44,14 @@ type CuePhase = 'idle' | 'armed' | 'call' | 'response'
 - cue での cak-long(長音)の使用
 - テンポ・音量の cue(dynamics)
 - 自動で展開が進む「曲」モード
+
+## Cue の種類(M1)
+
+| cue | call(2 beats) | response(2 beats) |
+|---|---|---|
+| `CUE` | Juru Klempung が長音の cak + pung で掛け声 | 全声部が裏拍から一斉に答える |
+| `BREAK` | 小さな pung 1 発のあと 1 beat 完全な無音(transition) | 同じ一斉の答え |
+
+- armed 中に別の cue を押すとそちらに切り替わり、同じ cue をもう一度押すと取り消せる。
+- Solo の声部だけが鳴っている間は、cue の call / response も Solo の声部だけが担当する。
+- `SOFT`(dynamics)は全体の音量を固定の比率(0.45)に落とす。拍の境界で切り替わる。
