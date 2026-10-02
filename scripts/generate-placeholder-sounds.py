@@ -6,6 +6,7 @@ recorded voices. Each family has several takes for round-robin variation.
   cak-short-01..03  short "cak" attack
   cak-long-01..02   sustained "caaak" (consonant + held vowel + release)
   pung-01           low pung
+  sir-01            rattling "sirrr" (stage board tambur)
 Run: python3 scripts/generate-placeholder-sounds.py
 """
 import math
@@ -72,6 +73,23 @@ def cak_long(seed, f0, vib):
     return out
 
 
+def sir(seed):
+    """A rattling "sirrr": band-limited noise with a fast amplitude roll, ~0.9 s."""
+    rng = random.Random(seed)
+    n = int(RATE * 0.9)
+    out, lp, hp = [], 0.0, 0.0
+    for i in range(n):
+        t = i / RATE
+        x = rng.uniform(-1, 1)
+        lp += 0.35 * (x - lp)      # soften
+        hp += 0.04 * (lp - hp)     # remove the lows
+        band = lp - hp
+        roll = 0.55 + 0.45 * math.sin(2 * math.pi * 34 * t)   # the trill
+        env = min(1.0, t * 400) * (1.0 if t < 0.55 else math.exp(-(t - 0.55) * 9))
+        out.append(band * roll * env)
+    return out
+
+
 def pung():
     n = int(RATE * 0.32)
     out, phase = [], 0.0
@@ -93,4 +111,5 @@ write("cak-short-03.wav", cak_short(3, 1650, 2550, 35))
 write("cak-long-01.wav", cak_long(11, 190, 5.2))
 write("cak-long-02.wav", cak_long(12, 210, 4.6))
 write("pung-01.wav", pung())
+write("sir-01.wav", sir(21))
 print("wrote", OUT)

@@ -2,6 +2,9 @@
 
 import type { BeatCell, Performer, SampleId, VocalEvent } from '../domain/rhythm'
 
+/** Samples drawn as an arc and held, not edited on the subtick grid. */
+export const isSustained = (sampleId: SampleId) => sampleId === 'cak-long' || sampleId === 'sir'
+
 /** Sample a voice uses for short hits: the beat keeper sings pung, the rest cak. */
 export const shortSampleFor = (p: Performer): SampleId =>
   p.role === 'beat-keeper' ? 'pung' : 'cak-short'
