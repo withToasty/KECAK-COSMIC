@@ -1,29 +1,27 @@
 import * as Tone from 'tone'
-import { EngineCore, type PulseEvent, type PulseSink } from './core'
-import { SAMPLES } from './samples'
+import { SAMPLE_FILES } from '../audio/sampleRegistry'
+import type { SampleId } from '../domain/rhythm'
 import {
-  type Hit,
-  type Performer,
-  type Voice,
-} from './types'
+  EngineCore,
+  type EventSink,
+  type MemberTrigger,
+} from './core'
+import type { ScheduledVocalEvent } from '../audio/beatScheduler'
 
 const MASTER_HEADROOM_DB = -12
 const LIMITER_CEILING_DB = -1
-const VOLUME_RAMP_S = 0.03
+const LONG_FADE_OUT_S = 0.05
 
-type VoiceBank = {
-  players: Tone.Player[]
-  next: number
-}
+type Bank = { players: Tone.Player[]; next: number }
 
-/** Tone.js implementation of the sink: samples -> performer gain -> master. */
-class ToneSink implements PulseSink {
+/** Tone.js sink: sample families (round-robin takes) -> master -> limiter. */
+class ToneSink implements EventSink {
   private master: Tone.Gain
   private limiter: Tone.Limiter
-  private gains = new Map<string, Tone.Gain>()
-  private banks = new Map<string, Record<Voice, VoiceBank>>()
+  private banks = new Map<string, Bank>()
   private buffers = new Map<string, Tone.ToneAudioBuffer>()
   private loading: Promise<void> | null = null
+  private warned = new Set<SampleId>()
 
   constructor() {
     this.limiter = new Tone.Limiter(LIMITER_CEILING_DB).toDestination()
@@ -35,7 +33,7 @@ class ToneSink implements PulseSink {
   /** Load every sample once; safe to call repeatedly. */
   load(): Promise<void> {
     this.loading ??= (async () => {
-      const urls = new Set(Object.values(SAMPLES).flat())
+      const urls = new Set(Object.values(SAMPLE_FILES).flat())
       await Promise.all(
         [...urls].map(async (url) => {
           this.buffers.set(url, await Tone.ToneAudioBuffer.fromUrl(url))
@@ -48,44 +46,48 @@ class ToneSink implements PulseSink {
     return this.loading
   }
 
-  private bankFor(p: Performer): VoiceBank {
-    let perVoice = this.banks.get(p.id)
-    if (!perVoice) {
-      perVoice = { cak: { players: [], next: 0 }, pung: { players: [], next: 0 } }
-      this.banks.set(p.id, perVoice)
+  private bank(performerId: string, member: number, sampleId: SampleId): Bank | null {
+    const urls = SAMPLE_FILES[sampleId]
+    if (!urls || urls.length === 0) {
+      if (!this.warned.has(sampleId)) {
+        this.warned.add(sampleId)
+        console.warn(`no samples registered for ${sampleId}`)
+      }
+      return null
     }
-    const bank = perVoice[p.voice]
-    if (bank.players.length === 0) {
-      const gain = this.gainFor(p)
-      bank.players = SAMPLES[p.voice].map((url) => {
-        const buffer = this.buffers.get(url)
-        if (!buffer) throw new Error(`sample not loaded: ${url}`)
-        return new Tone.Player(buffer).connect(gain)
-      })
+    const key = `${performerId}|${member}|${sampleId}`
+    let bank = this.banks.get(key)
+    if (!bank) {
+      // Stagger the first take per member so a group does not share one take.
+      const start = member % urls.length
+      bank = {
+        players: urls.map((url) => {
+          const buffer = this.buffers.get(url)
+          if (!buffer) throw new Error(`sample not loaded: ${url}`)
+          const player = new Tone.Player(buffer).connect(this.master)
+          player.fadeOut = sampleId === 'cak-long' ? LONG_FADE_OUT_S : 0
+          return player
+        }),
+        next: start,
+      }
+      this.banks.set(key, bank)
     }
     return bank
   }
 
-  private gainFor(p: Performer): Tone.Gain {
-    let g = this.gains.get(p.id)
-    if (!g) {
-      g = new Tone.Gain(p.volume).connect(this.master)
-      this.gains.set(p.id, g)
-    }
-    return g
-  }
-
-  setVolume(id: string, volume: number): void {
-    this.gains.get(id)?.gain.rampTo(volume, VOLUME_RAMP_S)
-  }
-
-  play(performer: Performer, hit: Hit, time: number): void {
-    const bank = this.bankFor(performer)
-    const player = bank.players[bank.next]
-    bank.next = (bank.next + 1) % bank.players.length
-    // Performer volume is on the gain node; accent scales each hit.
-    player.volume.setValueAtTime(Tone.gainToDb(hit.accent), time)
+  trigger({ event, memberIndex, time, gain }: MemberTrigger): void {
+    const bank = this.bank(event.performerId, memberIndex, event.sampleId)
+    if (!bank) return
+    const player = bank.players[bank.next % bank.players.length]
+    bank.next++
+    // `gain` already contains performer volume x accent x member share.
+    player.volume.setValueAtTime(Tone.gainToDb(gain), time)
     player.start(time)
+    // Sustained voice: cut / release at the event duration on the audio clock.
+    // Short samples play out naturally and are never time-stretched.
+    if (event.sampleId === 'cak-long') {
+      player.stop(time + event.durationSeconds)
+    }
   }
 
   setTempo(bpm: number, time: number): void {
@@ -93,16 +95,7 @@ class ToneSink implements PulseSink {
   }
 
   silence(): void {
-    for (const perVoice of this.banks.values()) {
-      for (const bank of Object.values(perVoice)) {
-        bank.players.forEach((pl) => pl.stop())
-      }
-    }
-  }
-
-  /** Reset gain nodes to a performer's current volume (used by RESET). */
-  syncVolumes(performers: readonly Performer[]): void {
-    for (const p of performers) this.gains.get(p.id)?.gain.rampTo(p.volume, VOLUME_RAMP_S)
+    for (const bank of this.banks.values()) bank.players.forEach((p) => p.stop())
   }
 }
 
@@ -112,8 +105,7 @@ export class KecakEngine {
   private starting = false
 
   async start(): Promise<void> {
-    const session = this.core.getSession()
-    if (session.playing || this.starting) return
+    if (this.core.getSession().playing || this.starting) return
     this.starting = true
     try {
       // Must run inside the user gesture that triggered START.
@@ -125,14 +117,9 @@ export class KecakEngine {
       transport.cancel()
       transport.bpm.value = this.core.getSession().tempoBpm
       this.core.markStarted()
-      // Scheduled at tick 0: pulse 0 is evaluated at the START time itself.
-      transport.scheduleRepeat(
-        (time) => {
-          this.core.onPulse(time)
-        },
-        '16n',
-        0,
-      )
+      // One callback per global beat (quarter-note equivalent). Events inside
+      // the beat are expanded to audio times directly: no subtick timer.
+      transport.scheduleRepeat((time) => this.core.onBeat(time), '4n', 0)
       transport.start('+0.05')
     } finally {
       this.starting = false
@@ -150,12 +137,10 @@ export class KecakEngine {
   reset(): void {
     this.stop()
     this.core.reset()
-    this.sink.syncVolumes(this.core.getSession().performers)
   }
 
   setVolume(id: string, volume: number): void {
     this.core.setVolume(id, volume)
-    this.sink.setVolume(id, volume)
   }
 
   /** Audio time the listener is hearing right now. */
@@ -169,7 +154,7 @@ export class KecakEngine {
     return this.core.positionAt(this.audioNow())
   }
 
-  dueVisuals(): PulseEvent[] {
+  dueVisuals(): ScheduledVocalEvent[] {
     return this.core.drainVisual(this.audioNow())
   }
 }

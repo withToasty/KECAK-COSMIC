@@ -1,58 +1,59 @@
 // Audio-library-independent engine core. The Tone.js layer (audio.ts) only
-// supplies a PulseSink and drives onPulse() from the audio clock, which keeps
-// all timing rules unit-testable.
+// supplies an EventSink and calls onBeat() once per global beat from the audio
+// clock; every timing rule lives here so it is unit-testable.
 
 import {
-  CUE_LENGTH,
-  clampTempo,
-  createSession,
-  cueHitsAt,
-  hitsAtPulse,
-  joinedCount,
-} from './session'
-import { CUE_CALL, CUE_START_GRID } from '../data/cuePhrase'
-import {
-  PULSES_PER_BEAT,
-  type CuePhase,
-  type Hit,
-  type Performer,
-  type Session,
-} from './types'
+  collectBeatEvents,
+  type ScheduledVocalEvent,
+} from '../audio/beatScheduler'
+import { buildEnsemble, type EnsembleMember } from '../audio/ensemble'
+import { CUE_BEATS, CUE_CALL, CUE_RESPONSE } from '../data/cuePhrase'
+import type { Performer } from '../domain/rhythm'
+import { clampTempo, createSession, joinedCount } from './session'
+import type { CuePhase, Session } from './types'
 
-export type VisualHit = { id: string; position: number }
-
-export type PulseEvent = {
-  pulse: number
-  /** Audio-clock time the pulse sounds at. */
+/** One sample trigger (one ensemble member of one vocal event). */
+export type MemberTrigger = {
+  event: ScheduledVocalEvent
+  memberIndex: number
+  /** Audio time, including the member's timing offset. */
   time: number
-  hits: VisualHit[]
+  gain: number
 }
 
-export interface PulseSink {
-  /** Every call for one pulse receives the identical `time`. */
-  play(performer: Performer, hit: Hit, time: number): void
+export interface EventSink {
+  /** Called for every member trigger of a beat. */
+  trigger(t: MemberTrigger): void
   setTempo(bpm: number, time: number): void
+}
+
+export type BeatEvent = {
+  beat: number
+  time: number
+  secondsPerBeat: number
+  events: ScheduledVocalEvent[]
 }
 
 type Command =
   | { type: 'join' }
   | { type: 'mute'; id: string; muted: boolean }
 
-const TIMELINE_LIMIT = 16
+const TIMELINE_LIMIT = 8
 
 export class EngineCore {
   private session: Session = createSession()
-  private pulse = 0
+  private beat = 0
   private queue: Command[] = []
   private pendingJoins = 0
   private cueArmed = false
   private cueStart: number | null = null
-  private timeline: { pulse: number; time: number }[] = []
-  private visual: PulseEvent[] = []
+  private timeline: { beat: number; time: number; secondsPerBeat: number }[] = []
+  private visual: ScheduledVocalEvent[] = []
+  private members = new Map<string, EnsembleMember[]>()
   private listeners = new Set<() => void>()
   private snapshot: Session = this.session
 
-  constructor(private sink: PulseSink) {}
+  constructor(private sink: EventSink) {}
 
   // --- store ---------------------------------------------------------------
 
@@ -63,20 +64,15 @@ export class EngineCore {
 
   getSession = (): Session => this.snapshot
 
-  /** Latest pulse index, read without triggering React updates. */
-  getPulse(): number {
-    return this.pulse
-  }
-
   private commit(): void {
-    this.snapshot = { ...this.session, globalPulse: this.pulse }
+    this.snapshot = { ...this.session, globalBeat: this.beat }
     this.listeners.forEach((l) => l())
   }
 
   // --- transport lifecycle -------------------------------------------------
 
   markStarted(): void {
-    this.pulse = 0
+    this.beat = 0
     this.clearCue()
     this.timeline = []
     this.visual = []
@@ -84,7 +80,7 @@ export class EngineCore {
     this.commit()
   }
 
-  /** STOP: return to pulse 0, keep joined / muted / volume / tempo. */
+  /** STOP: back to beat 0, keep joined / muted / volume / tempo. */
   markStopped(): void {
     this.clearCue()
     this.applyQueue()
@@ -96,7 +92,7 @@ export class EngineCore {
       tempoBpm: pending ?? this.session.tempoBpm,
       pendingTempoBpm: null,
     }
-    this.pulse = 0
+    this.beat = 0
     this.timeline = []
     this.visual = []
     this.commit()
@@ -108,7 +104,7 @@ export class EngineCore {
     this.queue = []
     this.pendingJoins = 0
     this.clearCue()
-    this.pulse = 0
+    this.beat = 0
     this.timeline = []
     this.visual = []
     this.commit()
@@ -164,13 +160,13 @@ export class EngineCore {
     if (!this.session.playing) {
       this.session = { ...this.session, tempoBpm: next, pendingTempoBpm: null }
     } else {
-      // Latest request wins; applied at the next klempung-beat boundary.
+      // Latest request wins; applied at the next global-beat boundary.
       this.session = { ...this.session, pendingTempoBpm: next }
     }
     this.commit()
   }
 
-  /** Arm a cue (starts at the next klempung-beat boundary); toggles while armed. */
+  /** Arm a cue (starts at the next beat boundary); toggles while armed. */
   toggleCue(): void {
     if (!this.session.playing) return
     if (this.cueStart !== null) return // a cue is already running
@@ -210,68 +206,87 @@ export class EngineCore {
     return true
   }
 
-  // --- pulse ---------------------------------------------------------------
+  // --- beat ----------------------------------------------------------------
 
   /**
-   * Called from the audio clock once per internal pulse. The first call after
-   * markStarted() is pulse 0 and sounds at the transport start time.
+   * Called from the audio clock once per global beat. The first call after
+   * markStarted() is beat 0 and sounds at the transport start time.
+   * JOIN / MUTE / tempo requests take effect here, on the beat boundary.
    */
-  onPulse(time: number): PulseEvent {
-    const pulse = this.pulse
+  onBeat(beatTime: number): BeatEvent {
+    const beat = this.beat
     let changed = this.applyQueue()
 
     const pending = this.session.pendingTempoBpm
-    if (pending !== null && pulse % PULSES_PER_BEAT === 0) {
-      this.session = {
-        ...this.session,
-        tempoBpm: pending,
-        pendingTempoBpm: null,
-      }
-      this.sink.setTempo(pending, time)
+    if (pending !== null) {
+      this.session = { ...this.session, tempoBpm: pending, pendingTempoBpm: null }
+      this.sink.setTempo(pending, beatTime)
       changed = true
     }
+    const tempoBpm = this.session.tempoBpm
+    const secondsPerBeat = 60 / tempoBpm
 
-    if (this.cueStart !== null && pulse - this.cueStart >= CUE_LENGTH) {
+    if (this.cueStart !== null && beat - this.cueStart >= CUE_BEATS) {
       this.cueStart = null
     }
-    if (this.cueArmed && this.cueStart === null && pulse % CUE_START_GRID === 0) {
+    if (this.cueArmed && this.cueStart === null) {
       this.cueArmed = false
-      this.cueStart = pulse
+      this.cueStart = beat
     }
     let phase: CuePhase = this.cueArmed ? 'armed' : 'idle'
-    let hits
+    let performers: readonly Performer[] = this.session.performers
+    let globalBeat = beat
     if (this.cueStart !== null) {
-      const rel = pulse - this.cueStart
+      const rel = beat - this.cueStart
       phase = rel < CUE_CALL.length ? 'call' : 'response'
-      hits = cueHitsAt(this.session.performers, rel, pulse)
-    } else {
-      hits = hitsAtPulse(this.session.performers, pulse)
+      performers = cueVoices(this.session.performers, rel)
+      globalBeat = 0
     }
     if (phase !== this.session.cue) {
       this.session = { ...this.session, cue: phase }
       changed = true
     }
-    for (const { performer, hit } of hits) {
-      this.sink.play(performer, hit, time)
+
+    const events = collectBeatEvents({
+      globalBeat,
+      beatTime,
+      tempoBpm,
+      performers,
+    })
+    const byId = new Map(this.session.performers.map((p) => [p.id, p]))
+    for (const event of events) {
+      const profile = byId.get(event.performerId)!.ensemble
+      for (const m of this.membersFor(event.performerId, profile)) {
+        this.sink.trigger({
+          event,
+          memberIndex: m.memberIndex,
+          time: event.audioTime + m.timeOffsetSeconds,
+          gain: event.gain * m.gainMultiplier,
+        })
+      }
     }
 
-    const event: PulseEvent = {
-      pulse,
-      time,
-      hits: hits.map((h) => ({ id: h.performer.id, position: h.position })),
-    }
-    this.timeline.push({ pulse, time })
+    this.timeline.push({ beat, time: beatTime, secondsPerBeat })
     if (this.timeline.length > TIMELINE_LIMIT) this.timeline.shift()
-    this.visual.push(event)
+    this.visual.push(...events)
 
-    this.pulse = pulse + 1
+    this.beat = beat + 1
     if (changed) this.commit()
-    return event
+    return { beat, time: beatTime, secondsPerBeat, events }
+  }
+
+  private membersFor(id: string, profile: Performer['ensemble']): EnsembleMember[] {
+    let m = this.members.get(id)
+    if (!m) {
+      m = buildEnsemble(profile)
+      this.members.set(id, m)
+    }
+    return m
   }
 
   // --- visuals (audio-clock driven, read by requestAnimationFrame) ---------
 
-  /** Fractional pulse position at audio time `now` (0 when stopped). */
+  /** Fractional global-beat position at audio time `now` (0 when stopped). */
   positionAt(now: number): number {
     const tl = this.timeline
     if (!this.session.playing || tl.length === 0) return 0
@@ -280,22 +295,41 @@ export class EngineCore {
       if (tl[k].time <= now) i = k
       else break
     }
-    if (i < 0) return tl[0].pulse
+    if (i < 0) return tl[0].beat
     const cur = tl[i]
     const next = tl[i + 1]
-    const span = next
-      ? next.time - cur.time
-      : 60 / (this.session.tempoBpm * PULSES_PER_BEAT)
+    const span = next ? next.time - cur.time : cur.secondsPerBeat
     const frac = Math.min(1, Math.max(0, (now - cur.time) / span))
-    return cur.pulse + frac
+    return cur.beat + frac
   }
 
-  /** Pulse events whose audio time has arrived. */
-  drainVisual(now: number): PulseEvent[] {
-    const due: PulseEvent[] = []
-    while (this.visual.length > 0 && this.visual[0].time <= now) {
-      due.push(this.visual.shift()!)
-    }
+  /** Vocal events whose audio time has arrived. */
+  drainVisual(now: number): ScheduledVocalEvent[] {
+    const due: ScheduledVocalEvent[] = []
+    const rest: ScheduledVocalEvent[] = []
+    for (const e of this.visual) (e.audioTime <= now ? due : rest).push(e)
+    this.visual = rest
     return due
   }
+}
+
+/**
+ * Synthetic one-beat performers for a cue beat: the call is voiced by the beat
+ * keeper only; the response by every joined, unmuted voice with its own sample.
+ */
+function cueVoices(performers: readonly Performer[], rel: number): Performer[] {
+  if (rel < CUE_CALL.length) {
+    return performers
+      .filter((p) => p.role === 'beat-keeper')
+      .map((p) => ({ ...p, pattern: { beats: [CUE_CALL[rel]] }, rotationBeats: 0 }))
+  }
+  const cell = CUE_RESPONSE[rel - CUE_CALL.length]
+  return performers.map((p) => {
+    const sampleId = p.role === 'beat-keeper' ? ('pung' as const) : ('cak-short' as const)
+    return {
+      ...p,
+      pattern: { beats: [cell.map((e) => ({ ...e, sampleId }))] },
+      rotationBeats: 0,
+    }
+  })
 }

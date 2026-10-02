@@ -1,11 +1,28 @@
-// Cue phrase (docs/cue-model.md). One cue cycle = CALL + RESPONSE pulses.
+// Cue phrase (docs/cue-model.md): 2 beats of call + 2 beats of response.
 // Kept as data so the phrase can be revised without touching engine logic.
 
-export const CUE_CALL = '10101000' // Juru Klempung alone
-export const CUE_RESPONSE = '00101011' // every joined, unmuted voice in unison, entering on the off-beat (pulse 2)
+import type { BeatCell } from '../domain/rhythm'
 
-/** A cue may start on any klempung-beat boundary (4 pulses), keeping the wait short. */
-export const CUE_START_GRID = 4
+const ev = (offsetSubtick: number, durationSubticks: number, accent: number) =>
+  ({ offsetSubtick, durationSubticks, accent })
 
-export const CUE_CALL_ACCENT = 0.9
-export const CUE_RESPONSE_ACCENT = 1
+/** Juru Klempung alone: pung on beat, on the half, then on the next beat. */
+export const CUE_CALL: readonly BeatCell[] = [
+  [
+    { ...ev(0, 3, 0.9), sampleId: 'pung' },
+    { ...ev(6, 3, 0.9), sampleId: 'pung' },
+  ],
+  [{ ...ev(0, 3, 0.9), sampleId: 'pung' }],
+]
+
+/**
+ * Every joined, unmuted voice in unison. Enters on the off-beat (subtick 6 of
+ * the first response beat) and ends with a pick-up into the next downbeat.
+ * Offsets only: each voice answers with its own sample (pung / cak-short).
+ */
+export const CUE_RESPONSE: readonly (readonly { offsetSubtick: number; durationSubticks: number; accent: number }[])[] = [
+  [ev(6, 2, 1)],
+  [ev(0, 2, 1), ev(6, 2, 1), ev(9, 2, 1)],
+]
+
+export const CUE_BEATS = CUE_CALL.length + CUE_RESPONSE.length

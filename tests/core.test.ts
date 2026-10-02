@@ -1,132 +1,107 @@
 import { describe, expect, it } from 'vitest'
-import { EngineCore, type PulseSink } from '../src/engine/core'
+import { collectBeatEvents } from '../src/audio/beatScheduler'
+import { buildEnsemble } from '../src/audio/ensemble'
 import { CUE_CALL, CUE_RESPONSE } from '../src/data/cuePhrase'
-import { createSession, hitsAtPulse } from '../src/engine/session'
-import type { Performer } from '../src/engine/types'
+import { gestureAuditionPerformers } from '../src/data/gestureAuditionPreset'
+import { EngineCore, type EventSink, type MemberTrigger } from '../src/engine/core'
+import { createSession } from '../src/engine/session'
 
-// Expected hits for the full 8-voice preset: docs/m0-pulse-fixture.md
-const FIXTURE: string[][] = [
-  ['JK', 'BP', 'TL', 'LP'],
-  ['TS'],
-  ['BS', 'TP', 'LS'],
-  ['TL'],
-  ['JK', 'BP', 'TS', 'LP'],
-  ['TP', 'TL'],
-  ['BS', 'TS', 'LS'],
-  ['TP'],
-  ['JK', 'BP', 'TL', 'LP'],
-  ['TS'],
-  ['BS', 'TP', 'LS'],
-  ['TL'],
-  ['JK', 'BP', 'TS', 'LP'],
-  ['TP', 'TL', 'LS'],
-  ['BS', 'TS', 'LP'],
-  ['TP', 'LS'],
+// Legacy pulse fixture (docs/m0-pulse-fixture.md): old q-grid, 4 per beat.
+const LEGACY_FIXTURE: string[][] = [
+  ['JK', 'BP', 'TL', 'LP'], ['TS'], ['BS', 'TP', 'LS'], ['TL'],
+  ['JK', 'BP', 'TS', 'LP'], ['TP', 'TL'], ['BS', 'TS', 'LS'], ['TP'],
+  ['JK', 'BP', 'TL', 'LP'], ['TS'], ['BS', 'TP', 'LS'], ['TL'],
+  ['JK', 'BP', 'TS', 'LP'], ['TP', 'TL', 'LS'], ['BS', 'TS', 'LP'], ['TP', 'LS'],
 ]
-
 const CODE: Record<string, string> = {
-  klempung: 'JK',
-  'besik-polos': 'BP',
-  'besik-sangsih': 'BS',
-  'telu-polos': 'TP',
-  'telu-sanglot': 'TL',
-  'telu-sangsih': 'TS',
-  'lima-polos': 'LP',
-  'lima-sangsih': 'LS',
+  klempung: 'JK', 'besik-polos': 'BP', 'besik-sangsih': 'BS', 'telu-polos': 'TP',
+  'telu-sanglot': 'TL', 'telu-sangsih': 'TS', 'lima-polos': 'LP', 'lima-sangsih': 'LS',
 }
-
-type Played = { id: string; time: number }
+const ids = (events: { performerId: string }[]) => events.map((e) => e.performerId).sort()
 
 function setup() {
-  const played: Played[] = []
+  const triggers: MemberTrigger[] = []
   const tempos: { bpm: number; time: number }[] = []
-  const sink: PulseSink = {
-    play: (p: Performer, _hit, time) => played.push({ id: p.id, time }),
+  const sink: EventSink = {
+    trigger: (t) => triggers.push(t),
     setTempo: (bpm, time) => tempos.push({ bpm, time }),
   }
   const core = new EngineCore(sink)
   const clock = { t: 100 }
-  /** Fire one pulse, 125 ms after the previous one. */
-  const pulse = () => {
-    const before = played.length
-    const ev = core.onPulse(clock.t)
-    clock.t += 0.125
-    return { ev, played: played.slice(before) }
+  /** Fire one beat (the audio layer does this from the Transport). */
+  const beat = () => {
+    const ev = core.onBeat(clock.t)
+    clock.t += ev.secondsPerBeat
+    return ev
   }
-  const joinAll = () => {
-    while (core.join());
-  }
-  return { core, played, tempos, pulse, joinAll }
+  const run = (n: number) => Array.from({ length: n }, beat)
+  const joinAll = () => { while (core.join()); }
+  return { core, triggers, tempos, beat, run, joinAll }
 }
 
-describe('fixture (8 voices)', () => {
-  it('matches the pulse 0-15 table', () => {
-    const s = createSession()
-    s.performers.forEach((p) => (p.joined = true))
+describe('legacy migration equivalence', () => {
+  const all = createSession()
+  all.performers.forEach((p) => (p.joined = true))
+
+  it('matches the old pulse 0-15 table (q -> subtick 0/3/6/9)', () => {
     for (let t = 0; t < 16; t++) {
-      const ids = hitsAtPulse(s.performers, t).map((h) => CODE[h.performer.kecakPart])
-      expect(ids.sort()).toEqual([...FIXTURE[t]].sort())
+      const beat = Math.floor(t / 4)
+      const subtick = (t % 4) * 3
+      const events = collectBeatEvents({
+        globalBeat: beat, beatTime: 0, tempoBpm: 120, performers: all.performers,
+      }).filter((e) => e.offsetSubtick === subtick)
+      expect(ids(events).map((id) => CODE[id]).sort()).toEqual([...LEGACY_FIXTURE[t]].sort())
     }
   })
 
-  it('repeats completely every 16 pulses', () => {
-    const s = createSession()
-    s.performers.forEach((p) => (p.joined = true))
-    const key = (t: number) =>
-      hitsAtPulse(s.performers, t).map((h) => h.performer.id).join()
-    for (let t = 0; t < 64; t++) expect(key(t + 16)).toBe(key(t))
+  it('repeats every 4 global beats', () => {
+    const key = (b: number) =>
+      collectBeatEvents({ globalBeat: b, beatTime: 0, tempoBpm: 120, performers: all.performers })
+        .map((e) => `${e.performerId}@${e.offsetSubtick}`).join()
+    for (let b = 0; b < 16; b++) expect(key(b + 4)).toBe(key(b))
   })
 })
 
 describe('START', () => {
-  it('sounds JK at pulse 0 immediately (no silent pulse)', () => {
-    const { core, pulse } = setup()
-    // The audio layer calls markStarted() before the first transport callback.
+  it('sounds JK pung at beat 0, subtick 0, exactly at the start time', () => {
+    const { core, beat } = setup()
     core.markStarted()
-    const first = pulse()
-    expect(first.ev.pulse).toBe(0)
-    expect(first.played.map((x) => x.id)).toEqual(['klempung'])
+    const first = beat()
+    expect(first.beat).toBe(0)
+    expect(first.events).toHaveLength(1)
+    expect(first.events[0]).toMatchObject({
+      performerId: 'klempung', sampleId: 'pung', offsetSubtick: 0, audioTime: 100,
+    })
   })
 })
 
 describe('STOP / RESET', () => {
-  it('STOP keeps joined / muted / volume / tempo and rewinds to pulse 0', () => {
-    const { core, pulse } = setup()
-    core.join()
-    core.join()
+  it('STOP keeps joined / muted / volume / tempo and rewinds to beat 0', () => {
+    const { core, beat } = setup()
+    core.join(); core.join()
     core.setMuted('besik-polos', true)
     core.setVolume('besik-polos', 0.4)
     core.setTempo(150)
     core.markStarted()
-    for (let i = 0; i < 6; i++) pulse()
+    for (let i = 0; i < 3; i++) beat()
     core.markStopped()
-
     const s = core.getSession()
-    expect(s.playing).toBe(false)
-    expect(s.globalPulse).toBe(0)
-    expect(s.performers.filter((p) => p.joined).length).toBe(3)
-    expect(s.performers.find((p) => p.id === 'besik-polos')).toMatchObject({
-      muted: true,
-      volume: 0.4,
-    })
-    expect(s.tempoBpm).toBe(150)
-
+    expect(s).toMatchObject({ playing: false, globalBeat: 0, tempoBpm: 150 })
+    expect(s.performers.filter((p) => p.joined)).toHaveLength(3)
+    expect(s.performers.find((p) => p.id === 'besik-polos')).toMatchObject({ muted: true, volume: 0.4 })
     core.markStarted()
-    expect(pulse().ev.pulse).toBe(0)
+    expect(beat().beat).toBe(0)
   })
 
   it('RESET restores the initial session', () => {
     const { core } = setup()
-    core.join()
-    core.setMuted('klempung', true)
-    core.setTempo(200)
-    core.setVolume('klempung', 0.2)
+    core.join(); core.setMuted('klempung', true); core.setTempo(200); core.setVolume('klempung', 0.2)
     core.reset()
     const s = core.getSession()
     expect(s.tempoBpm).toBe(120)
     expect(s.pendingTempoBpm).toBeNull()
     expect(s.performers.filter((p) => p.joined).map((p) => p.id)).toEqual(['klempung'])
-    expect(s.performers.every((p) => !p.muted && p.volume === 1 && p.rotation === 0)).toBe(true)
+    expect(s.performers.every((p) => !p.muted && p.volume === 1 && p.rotationBeats === 0)).toBe(true)
   })
 })
 
@@ -135,25 +110,31 @@ describe('JOIN', () => {
     const { core } = setup()
     for (let i = 0; i < 7; i++) expect(core.join()).toBe(true)
     expect(core.join()).toBe(false)
-    expect(core.getSession().performers.map((p) => p.joined)).toEqual(Array(8).fill(true))
   })
 
-  it('while playing: takes effect at the next pulse at the current global position', () => {
-    const { core, pulse } = setup()
+  it('while playing: effective on the next beat boundary, at the current global beat position', () => {
+    const { core, beat } = setup()
     core.markStarted()
-    for (let i = 0; i < 3; i++) pulse() // pulses 0,1,2 done; next is pulse 3
-    expect(core.join()).toBe(true) // besik-polos (1000)
-    expect(core.getSession().performers[1].joined).toBe(false) // not yet
-    const p3 = pulse()
-    expect(p3.ev.pulse).toBe(3)
-    expect(core.getSession().performers[1].joined).toBe(true)
-    // pattern 1000 at position 3 % 4 = 3 is a rest: it does not restart at index 0
-    expect(p3.played).toEqual([])
-    const p4 = pulse()
-    expect(p4.played.map((x) => x.id).sort()).toEqual(['besik-polos', 'klempung'])
+    core.join(); core.join(); core.join() // besik-polos, besik-sangsih, telu-polos (queued)
+    expect(core.getSession().performers[3].joined).toBe(false)
+    const b0 = beat() // beat 0: boundary, the three joins take effect now
+    expect(b0.beat).toBe(0)
+    expect(core.getSession().performers[3].joined).toBe(true)
   })
 
-  it('does not allow queuing more joins than seats', () => {
+  it('a voice joining mid-song enters at globalBeat % cycle, not at its first beat', () => {
+    const { core, beat, run } = setup()
+    core.markStarted()
+    run(3) // beats 0,1,2 done; next is beat 3
+    for (let i = 0; i < 3; i++) core.join() // besik-polos, besik-sangsih, telu-polos
+    const b3 = beat()
+    expect(b3.beat).toBe(3)
+    const telu = b3.events.find((e) => e.performerId === 'telu-polos')
+    // telu-polos has a 2-beat cycle: beat 3 -> index 1 (not index 0)
+    expect(telu?.beatIndex).toBe(1)
+  })
+
+  it('cannot queue more joins than seats', () => {
     const { core } = setup()
     core.markStarted()
     for (let i = 0; i < 7; i++) expect(core.join()).toBe(true)
@@ -162,20 +143,15 @@ describe('JOIN', () => {
 })
 
 describe('MUTE', () => {
-  it('while playing: takes effect on the next pulse, marker data unaffected', () => {
-    const { core, pulse } = setup()
+  it('while playing: effective on the next beat boundary', () => {
+    const { core, beat } = setup()
     core.markStarted()
-    expect(pulse().played.map((x) => x.id)).toEqual(['klempung'])
+    expect(ids(beat().events)).toEqual(['klempung'])
     core.setMuted('klempung', true)
-    pulse()
-    pulse()
-    pulse()
-    expect(pulse().played).toEqual([]) // pulse 4 would have been JK
+    expect(core.getSession().performers[0].muted).toBe(false) // not yet
+    expect(beat().events).toEqual([])
     core.setMuted('klempung', false)
-    expect(pulse().ev.pulse).toBe(5)
-    const p = [pulse(), pulse(), pulse()]
-    expect(p[2].ev.pulse).toBe(8)
-    expect(p[2].played.map((x) => x.id)).toEqual(['klempung'])
+    expect(ids(beat().events)).toEqual(['klempung'])
   })
 
   it('cannot mute an unjoined voice', () => {
@@ -186,185 +162,178 @@ describe('MUTE', () => {
 })
 
 describe('Tempo', () => {
-  it('stopped: applies immediately and clamps to 60-220', () => {
+  it('stopped: applies immediately, clamped to 60-220', () => {
     const { core } = setup()
-    core.setTempo(500)
-    expect(core.getSession().tempoBpm).toBe(220)
-    core.setTempo(10)
-    expect(core.getSession().tempoBpm).toBe(60)
+    core.setTempo(500); expect(core.getSession().tempoBpm).toBe(220)
+    core.setTempo(10); expect(core.getSession().tempoBpm).toBe(60)
   })
 
-  it('playing: pending until the next klempung-beat boundary, latest wins', () => {
-    const { core, pulse, tempos } = setup()
+  it('playing: pending until the next beat boundary, latest wins, whole beat uses one tempo', () => {
+    const { core, beat, tempos } = setup()
     core.markStarted()
-    pulse() // pulse 0
-    pulse() // pulse 1
-    core.setTempo(140)
-    core.setTempo(160)
-    expect(core.getSession().pendingTempoBpm).toBe(160)
-    pulse() // 2
-    pulse() // 3
+    beat()
+    core.setTempo(140); core.setTempo(60)
+    expect(core.getSession().pendingTempoBpm).toBe(60)
     expect(tempos).toEqual([])
-    expect(core.getSession().tempoBpm).toBe(120)
-    const p4 = pulse() // pulse 4: boundary
-    expect(p4.ev.pulse).toBe(4)
-    expect(tempos).toEqual([{ bpm: 160, time: p4.ev.time }])
-    expect(core.getSession().tempoBpm).toBe(160)
-    expect(core.getSession().pendingTempoBpm).toBeNull()
+    const b1 = beat() // boundary
+    expect(tempos).toEqual([{ bpm: 60, time: b1.time }])
+    expect(b1.secondsPerBeat).toBe(1) // 60 BPM
+    expect(core.getSession()).toMatchObject({ tempoBpm: 60, pendingTempoBpm: null })
   })
 })
 
-describe('Same-pulse scheduling', () => {
-  it('schedules every voice of a pulse at the identical audio time', () => {
-    const { core, pulse, joinAll } = setup()
+describe('same-time scheduling and ensemble', () => {
+  it('voices on the same subtick share one base audio time', () => {
+    const { core, joinAll, beat } = setup()
     joinAll()
     core.markStarted()
-    for (let t = 0; t < 16; t++) {
-      const { ev, played } = pulse()
-      expect(played).toHaveLength(FIXTURE[t].length)
-      for (const hit of played) expect(hit.time).toBe(ev.time)
+    const ev = beat() // beat 0 has several voices at subtick 0
+    const at0 = ev.events.filter((e) => e.offsetSubtick === 0)
+    expect(at0.length).toBeGreaterThan(1)
+    for (const e of at0) expect(e.audioTime).toBe(100)
+  })
+
+  it('ensemble members stay within the configured spread and member 0 is on the grid', () => {
+    const { core, joinAll, triggers, beat } = setup()
+    joinAll()
+    core.markStarted()
+    beat()
+    for (const t of triggers) {
+      const profile = core.getSession().performers.find((p) => p.id === t.event.performerId)!.ensemble
+      const delta = t.time - t.event.audioTime
+      expect(delta).toBeGreaterThanOrEqual(0)
+      expect(delta).toBeLessThanOrEqual(profile.timingSpreadMs / 1000 + 1e-9)
+      if (t.memberIndex === 0) expect(delta).toBe(0)
     }
+    // cak groups expand into several members; the beat keeper stays one voice
+    const members = (id: string) => triggers.filter((t) => t.event.performerId === id && t.event.eventIndex === 0)
+    expect(members('klempung')).toHaveLength(1)
+    expect(members('besik-polos').length).toBeGreaterThan(1)
+  })
+
+  it('is deterministic for a seed, and size=1 / spread=0 is exact', () => {
+    const p = { size: 4, timingSpreadMs: 14, gainSpread: 0.08, seed: 201 }
+    expect(buildEnsemble(p)).toEqual(buildEnsemble(p))
+    expect(buildEnsemble({ ...p, seed: 202 })).not.toEqual(buildEnsemble(p))
+    expect(buildEnsemble({ size: 1, timingSpreadMs: 0, gainSpread: 0, seed: 1 })).toEqual([
+      { memberIndex: 0, timeOffsetSeconds: 0, gainMultiplier: 1 },
+    ])
   })
 })
 
-describe('visual clock', () => {
-  it('interpolates the marker between pulses from the audio time', () => {
-    const { core, pulse } = setup()
-    core.markStarted()
-    pulse() // t=100
-    pulse() // t=100.125
-    expect(core.positionAt(100)).toBeCloseTo(0)
-    expect(core.positionAt(100.0625)).toBeCloseTo(0.5)
-    expect(core.positionAt(100.125)).toBeCloseTo(1)
-    // not-yet-scheduled pulse: advance by the current pulse length, clamped at 1 pulse
-    expect(core.positionAt(100.1875)).toBeCloseTo(1.5)
-    expect(core.positionAt(101)).toBeCloseTo(2)
-  })
-
-  it('releases visual events only when their audio time has arrived', () => {
-    const { core, pulse } = setup()
-    core.markStarted()
-    pulse()
-    pulse()
-    expect(core.drainVisual(99).length).toBe(0)
-    expect(core.drainVisual(100.01).map((e) => e.pulse)).toEqual([0])
-    expect(core.drainVisual(100.2).map((e) => e.pulse)).toEqual([1])
-  })
-
-  it('reports position 0 when stopped', () => {
-    const { core } = setup()
-    expect(core.positionAt(123)).toBe(0)
+describe('long vs short samples', () => {
+  it('keeps cak-long and cak-short as distinct sample ids', () => {
+    const events = collectBeatEvents({
+      globalBeat: 0, beatTime: 0, tempoBpm: 120, performers: gestureAuditionPerformers,
+    })
+    const bySample = (id: string) => events.filter((e) => e.sampleId === id)
+    expect(bySample('cak-long')).toHaveLength(1)
+    expect(bySample('cak-short').length).toBeGreaterThan(1)
+    expect(bySample('cak-long')[0].durationSeconds).toBe(0.5)
   })
 })
 
 describe('CUE (docs/cue-model.md)', () => {
-  const ids = (r: { played: { id: string }[] }) => r.played.map((x) => x.id).sort()
-
-  /** Run `n` pulses; returns per-pulse results. */
-  function run(pulse: ReturnType<typeof setup>['pulse'], n: number) {
-    return Array.from({ length: n }, () => pulse())
-  }
-
   it('only works while playing', () => {
     const { core } = setup()
     core.toggleCue()
     expect(core.getSession().cue).toBe('idle')
   })
 
-  it('arms immediately and starts at the next klempung-beat boundary', () => {
-    const { core, pulse, joinAll } = setup()
-    joinAll()
+  it('arms immediately and starts on the next beat boundary', () => {
+    const { core, beat, run } = setup()
     core.markStarted()
-    run(pulse, 5) // pulses 0..4 done; next is pulse 5
+    run(2)
     core.toggleCue()
     expect(core.getSession().cue).toBe('armed')
-    // pulses 5, 6, 7 stay on the normal groove
-    for (let t = 5; t < 8; t++) {
-      const r = pulse()
-      expect(r.ev.pulse).toBe(t)
-      expect(r.played).toHaveLength(FIXTURE[t].length)
-      expect(core.getSession().cue).toBe('armed')
-    }
-    // pulse 8 is the boundary: the call begins (pung at rel 0)
-    const start = pulse()
-    expect(start.ev.pulse).toBe(8)
-    expect(ids(start)).toEqual(['klempung'])
+    const b = beat() // beat 2: the call begins
+    expect(b.beat).toBe(2)
     expect(core.getSession().cue).toBe('call')
+    expect(ids(b.events)).toEqual(['klempung', 'klempung'])
   })
 
-  it('arming just before a boundary starts on that boundary (max wait is one beat)', () => {
-    const { core, pulse } = setup()
-    core.markStarted()
-    run(pulse, 4) // next is pulse 4
-    core.toggleCue()
-    expect(pulse().ev.pulse).toBe(4)
-    expect(core.getSession().cue).toBe('call')
-  })
-
-  it('call: only Juru Klempung; response: all joined voices in unison on the off-beat; then groove returns', () => {
-    const { core, pulse, joinAll } = setup()
+  it('call: JK only; response: every joined voice in unison on the off-beat; then groove returns', () => {
+    const { core, joinAll, beat, run } = setup()
     joinAll()
     core.markStarted()
-    run(pulse, 4)
+    run(1)
     core.toggleCue()
-    const cue = run(pulse, 16) // pulses 4..19
-    cue.slice(0, 8).forEach((r, rel) => {
-      expect(ids(r)).toEqual(CUE_CALL[rel] === '1' ? ['klempung'] : [])
+    const cue = run(4) // beats 1..4
+    // call (2 beats): beat-keeper only, offsets from CUE_CALL
+    cue.slice(0, 2).forEach((ev, i) => {
+      expect(ids(ev.events).every((id) => id === 'klempung')).toBe(true)
+      expect(ev.events.map((e) => e.offsetSubtick)).toEqual(CUE_CALL[i].map((e) => e.offsetSubtick))
     })
-    expect(core.getSession().cue).toBe('response') // still the last response pulse
-    cue.slice(8).forEach((r, i) => {
-      expect(ids(r)).toHaveLength(CUE_RESPONSE[i] === '1' ? 8 : 0)
+    expect(core.getSession().cue).toBe('response')
+    // response (2 beats): all 8 voices at each offset, first hit on subtick 6 (the off-beat)
+    cue.slice(2).forEach((ev, i) => {
+      for (const e of CUE_RESPONSE[i]) {
+        expect(ev.events.filter((x) => x.offsetSubtick === e.offsetSubtick)).toHaveLength(8)
+      }
     })
-    // The response enters on the off-beat (halfway through the beat), not on the beat.
-    expect(CUE_RESPONSE.indexOf('1') % 4).toBe(2)
-    // pulse 20 onwards: the groove returns (fixture row 4)
-    const back = pulse()
-    expect(back.ev.pulse).toBe(20)
-    expect(back.played).toHaveLength(FIXTURE[4].length)
+    expect(Math.min(...cue[2].events.map((e) => e.offsetSubtick))).toBe(6)
+    // beat 5: back to the normal groove (beat 5 % cycle)
+    const back = beat()
+    expect(back.beat).toBe(5)
     expect(core.getSession().cue).toBe('idle')
+    expect(back.events.some((e) => e.sampleId === 'cak-short')).toBe(true)
+    expect(back.events.length).toBeGreaterThan(8) // groove, not the 8-voice unison
   })
 
-  it('schedules the unison response at one identical audio time', () => {
-    const { core, pulse, joinAll } = setup()
-    joinAll()
-    core.markStarted()
-    core.toggleCue()
-    const cue = run(pulse, 16)
-    for (const r of cue.slice(8)) for (const h of r.played) expect(h.time).toBe(r.ev.time)
-  })
-
-  it('muted voices stay silent during a cue', () => {
-    const { core, pulse, joinAll } = setup()
+  it('response schedules all voices on identical base times; muted voices stay silent', () => {
+    const { core, joinAll, run } = setup()
     joinAll()
     core.setMuted('lima-sangsih', true)
     core.markStarted()
     core.toggleCue()
-    const cue = run(pulse, 16)
-    const hit = cue.slice(8).find((r) => r.played.length > 0)!
-    expect(hit.played.map((x) => x.id)).not.toContain('lima-sangsih')
-    expect(hit.played).toHaveLength(7)
+    const cue = run(4)
+    const resp = cue[2].events
+    expect(resp.map((e) => e.performerId)).not.toContain('lima-sangsih')
+    expect(resp).toHaveLength(7)
+    for (const e of resp) expect(e.audioTime).toBe(resp[0].audioTime)
   })
 
-  it('can be cancelled while armed and is cleared by STOP', () => {
-    const { core, pulse } = setup()
+  it('can be cancelled while armed, is cleared by STOP, never resets the beat counter', () => {
+    const { core, beat, run } = setup()
     core.markStarted()
-    run(pulse, 3)
-    core.toggleCue()
-    core.toggleCue()
+    run(2)
+    core.toggleCue(); core.toggleCue()
     expect(core.getSession().cue).toBe('idle')
     core.toggleCue()
     core.markStopped()
     expect(core.getSession().cue).toBe('idle')
     core.markStarted()
-    run(pulse, 17)
-    expect(core.getSession().cue).toBe('idle')
+    core.toggleCue()
+    const beats = [beat(), ...run(7)].map((e) => e.beat)
+    expect(beats).toEqual([0, 1, 2, 3, 4, 5, 6, 7])
+  })
+})
+
+describe('visual clock', () => {
+  it('interpolates the marker between beats from the audio time', () => {
+    const { core, run } = setup()
+    core.markStarted()
+    run(2) // beat 0 at t=100, beat 1 at t=100.5
+    expect(core.positionAt(100)).toBeCloseTo(0)
+    expect(core.positionAt(100.25)).toBeCloseTo(0.5)
+    expect(core.positionAt(100.5)).toBeCloseTo(1)
+    expect(core.positionAt(101)).toBeCloseTo(2)
   })
 
-  it('never resets the global pulse', () => {
-    const { core, pulse } = setup()
+  it('releases visual events only when their audio time has arrived', () => {
+    const { core, joinAll, run } = setup()
+    joinAll()
     core.markStarted()
-    core.toggleCue()
-    const all = run(pulse, 40)
-    expect(all.map((r) => r.ev.pulse)).toEqual(Array.from({ length: 40 }, (_, i) => i))
+    run(1)
+    expect(core.drainVisual(99)).toHaveLength(0)
+    const first = core.drainVisual(100.01)
+    expect(first.every((e) => e.audioTime <= 100.01)).toBe(true)
+    // later events in the same beat (subtick 6 = +0.25 s) are still held back
+    expect(core.drainVisual(100.01)).toHaveLength(0)
+    expect(core.drainVisual(100.3).some((e) => e.offsetSubtick === 6)).toBe(true)
+  })
+
+  it('reports position 0 when stopped', () => {
+    expect(setup().core.positionAt(123)).toBe(0)
   })
 })

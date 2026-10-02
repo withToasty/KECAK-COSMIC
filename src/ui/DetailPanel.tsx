@@ -1,7 +1,8 @@
 import { KECAK_PRESETS } from '../data/kecakPresets'
-import type { Performer } from '../engine/types'
+import { SUBTICKS_PER_BEAT, type Performer } from '../domain/rhythm'
 import { engine } from './useEngine'
-import { nodeAngle, pointOnCircle } from './geometry'
+import { cycleAngle, pointOnCircle } from './geometry'
+import { OrbitRing } from './OrbitRing'
 
 const ROLE_LABEL: Record<Performer['role'], string> = {
   'beat-keeper': 'beat keeper',
@@ -14,43 +15,39 @@ function BigRing({ p }: { p: Performer }) {
   const size = 200
   const c = size / 2
   const r = 78
-  const len = p.pattern.length
+  const cycle = p.pattern.beats.length
   return (
     <svg className="big-ring" viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
       <circle className="orbit-line big" cx={c} cy={c} r={r} data-orbit={p.id} />
-      {p.pattern.map((hit, i) => {
-        const pt = pointOnCircle(c, c, r, nodeAngle(i, len))
+      {Array.from({ length: cycle }, (_, b) => {
+        const pt = pointOnCircle(c, c, r + 16, cycleAngle(b + 0.5, cycle))
         return (
-          <g key={i}>
-            <circle
-              data-node={`${p.id}:${i}`}
-              className={hit.on ? 'node hit' : 'node rest'}
-              cx={pt.x}
-              cy={pt.y}
-              r={hit.on ? 6 : 3.6}
-            />
-            <text className="node-index" x={pt.x} y={pt.y} dy={pt.y < c ? -11 : 17}>
-              {i}
-            </text>
-          </g>
+          <text key={b} className="node-index" x={pt.x} y={pt.y} dy="0.35em">
+            {b + 1}
+          </text>
         )
       })}
-      <circle
-        data-marker={p.id}
-        data-len={len}
-        data-r={r}
-        data-cx={c}
-        data-cy={c}
-        className="marker"
-        cx={c}
-        cy={c - r}
-        r={8}
-      />
+      <OrbitRing performer={p} cx={c} cy={c} r={r} point={5} tick={5} markerR={7} />
       <text className="ring-center" x={c} y={c} dy="0.35em">
-        {len} pulses
+        {cycle} {cycle === 1 ? 'beat' : 'beats'}
       </text>
     </svg>
   )
+}
+
+/** Compact text view: one cell per beat, event offsets in 12ths of a beat. */
+function patternSummary(p: Performer): string {
+  return p.pattern.beats
+    .map((cell) =>
+      cell.length === 0
+        ? '–'
+        : cell
+            .map((e) =>
+              e.sampleId === 'cak-long' ? `${e.offsetSubtick}~` : String(e.offsetSubtick),
+            )
+            .join(','),
+    )
+    .join(' | ')
 }
 
 export function DetailPanel({
@@ -75,12 +72,15 @@ export function DetailPanel({
           <dl>
             <dt>Role</dt>
             <dd>{ROLE_LABEL[p.role]}</dd>
-            <dt>Pattern</dt>
+            <dt>Cycle</dt>
+            <dd>{p.pattern.beats.length} beats</dd>
+            <dt>Events</dt>
             <dd>
-              {p.pattern.length} pulses · <code>{p.pattern.map((h) => (h.on ? '1' : '0')).join('')}</code>
+              <code>{patternSummary(p)}</code>
+              <span className="unit"> (per beat, /{SUBTICKS_PER_BEAT})</span>
             </dd>
-            <dt>Voice</dt>
-            <dd>{p.voice}</dd>
+            <dt>Voice group</dt>
+            <dd>{p.ensemble.size} {p.ensemble.size === 1 ? 'voice' : 'voices'}</dd>
           </dl>
           {preset && <p className="desc">{preset.description}</p>}
           <label className="row">

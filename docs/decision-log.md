@@ -67,7 +67,14 @@ Implementation should follow:
 
 If these documents conflict, the order above is the precedence for M0 implementation details.
 
-## Cue (M0.5)
+## Cue (M0.1)
 
-- A manual CUE button adds a call-and-response section on top of the infinite pulse: arm now, start at the next klempung-beat boundary (max one beat wait), call by Juru Klempung (8 pulses), unison response by all joined unmuted voices (8 pulses) that enters on the off-beat, then return to the groove. See [Cue Model](./cue-model.md).
-- Cue never resets or pauses the global pulse. Auto-arranged songs are deferred.
+- A manual CUE button adds a call-and-response section on top of the infinite beat: arm now, start at the next global-beat boundary (max one beat wait), call by Juru Klempung (2 beats), then a unison response by all joined unmuted voices (2 beats) that enters on the off-beat. See [Cue Model](./cue-model.md).
+- Cue never resets or pauses the global beat. Auto-arranged songs are deferred.
+
+## Implementation notes (M0.1 engine)
+
+- Engine follows the beat-gesture model: one Transport callback per global beat (`4n`), events expanded to audio times inside it. JOIN / MUTE / tempo take effect at the next beat boundary.
+- The eight presets are the legacy 4-grid strings migrated to BeatCell / VocalEvent (short cak = `cak-short`, 2 subticks; pung = 3 subticks). Musical content is unchanged; only the engine moved. Long (`cak-long`), double, triple and offset gestures are available in the engine and in the audition preset, but are not yet used by the Kecak preset.
+- Ensemble: Juru Klempung is a single voice; each cak part expands into 4 members with up to 14 ms of trailing timing spread and 8% gain spread, seeded per performer. Member 0 stays exactly on the grid.
+- Placeholder samples: 3 `cak-short` takes, 2 `cak-long` takes, 1 `pung`, all generated in this repository.

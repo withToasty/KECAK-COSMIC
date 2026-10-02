@@ -39,9 +39,10 @@ body {
 /* orbits */
 .orbit-line { fill: none; stroke: var(--line); stroke-width: 1; stroke-opacity: 0.45; }
 .orbit.joined .orbit-line { stroke: #56607c; stroke-opacity: 0.8; }
-.node { fill: none; transform-box: fill-box; transform-origin: center; }
-.node.rest { fill: #3a425a; }
-.node.hit { fill: var(--hit); }
+.beat-tick { stroke: #3a425a; stroke-width: 1; }
+.event { transform-box: fill-box; transform-origin: center; }
+.event.short { fill: var(--hit); }
+.event.long { fill: none; stroke: var(--hit); stroke-linecap: round; opacity: 0.9; }
 .marker { fill: #fff; stroke: var(--accent); stroke-width: 1.5; pointer-events: none; }
 .center-dot { fill: var(--accent); opacity: 0.5; transform-box: fill-box; transform-origin: center; }
 
@@ -112,6 +113,7 @@ input[type='range'] { width: 100%; accent-color: var(--accent); min-height: 32px
 @media (max-width: 420px) { .detail-body { grid-template-columns: 1fr; } .big-ring { max-width: 220px; margin: 0 auto; } }
 .big-ring { width: 100%; height: auto; }
 .orbit-line.big { stroke: #56607c; stroke-opacity: 0.8; stroke-width: 1.2; }
+.unit { color: var(--dim); font-size: 11px; }
 .node-index { font-size: 7px; fill: var(--dim); text-anchor: middle; }
 .ring-center { font-size: 10px; fill: var(--dim); text-anchor: middle; }
 .detail dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0 0 8px; font-size: 13px; }

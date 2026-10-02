@@ -1,12 +1,12 @@
 import { KECAK_PRESETS } from '../data/kecakPresets'
-import type { Performer } from '../engine/types'
+import type { Performer } from '../domain/rhythm'
+import { OrbitRing } from './OrbitRing'
 import {
   AVATAR_R,
   CENTER,
   ORBIT_STEP,
   SEAT_RADIUS,
   VIEW,
-  nodeAngle,
   orbitRadius,
   pointOnCircle,
   seatAngle,
@@ -41,7 +41,6 @@ export function OrbitView({ performers, nextEntry, selectedId, onSeat }: Props) 
 
       {performers.map((p) => {
         const r = orbitRadius(p.entry)
-        const len = p.pattern.length
         return (
           <g key={p.id} className={p.joined ? 'orbit joined' : 'orbit'}>
             <circle
@@ -51,30 +50,16 @@ export function OrbitView({ performers, nextEntry, selectedId, onSeat }: Props) 
               cy={CENTER}
               r={r}
             />
-            {p.joined &&
-              p.pattern.map((hit, i) => {
-                const pt = pointOnCircle(CENTER, CENTER, r, nodeAngle(i, len))
-                return (
-                  <circle
-                    key={i}
-                    data-node={`${p.id}:${i}`}
-                    className={hit.on ? 'node hit' : 'node rest'}
-                    cx={pt.x}
-                    cy={pt.y}
-                    r={hit.on ? 3.4 : 2}
-                    style={p.muted ? { opacity: 0.35 } : undefined}
-                  />
-                )
-              })}
             {p.joined && (
-              <circle
-                data-marker={p.id}
-                data-len={len}
-                data-r={r}
-                className="marker"
+              <OrbitRing
+                performer={p}
                 cx={CENTER}
-                cy={CENTER - r}
-                r={4.6}
+                cy={CENTER}
+                r={r}
+                point={2.6}
+                tick={2.4}
+                markerR={4.6}
+                muted={p.muted}
               />
             )}
           </g>
