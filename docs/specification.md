@@ -138,6 +138,8 @@ M0では順番を飛ばして参加させない。
 
 次に参加可能な人物だけを操作可能にする。
 
+中央の `JOIN NEXT VOICE` と「次の人物をタップ」は同じ command を呼ぶ。
+
 一度 joined になった声部は M0 では離脱しない。無音にしたい場合は Mute を使う。
 
 ---
@@ -158,7 +160,9 @@ Entry 3
 Entry 8 = 最外周
 ```
 
-8人の代表者は軌道群のさらに外側に円形に座り、各人物と担当軌道の対応が分かるラベルまたはガイドを持つ。
+8人の代表者は軌道群のさらに外側に45°間隔で円形に座る。
+
+各人物の角度位置に、その人物が担当する軌道の短いラベルを置く。人物と軌道の対応を色だけに依存させない。
 
 小さな円を各人物の周囲に8個作る方式は採用しない。
 
@@ -198,9 +202,15 @@ current marker が active node の時刻を通過した瞬間に発声し、人�
 
 未参加の人物は暗いシルエット。
 
-未参加軌道は薄いガイドとして表示してよいが、moving marker は表示しない。
+**8本の orbit outline 自体は開始時からすべて薄く表示する。**
 
-JOINした瞬間から、その声部の軌道・node・markerを有効表示する。
+未参加声部では:
+
+- node は非表示
+- moving marker は非表示
+- orbit label は低コントラスト
+
+JOINした瞬間から、その声部の node / marker / label を有効表示する。
 
 ---
 
@@ -366,6 +376,15 @@ type Hit = {
 - 発音時の velocity / gain multiplier として利用可能
 
 pattern文書では可読性のため 0/1 表記を使い、コードロード時に Hit 配列へ変換してよい。
+
+発声gainは原則:
+
+```ts
+effectiveGain =
+  performer.volume * hit.accent
+```
+
+とし、その後 master chain へ送る。
 
 ---
 
@@ -539,6 +558,16 @@ type Role =
   | 'sangsih'
   | 'sanglot'
 
+type KecakPart =
+  | 'klempung'
+  | 'besik-polos'
+  | 'besik-sangsih'
+  | 'telu-polos'
+  | 'telu-sanglot'
+  | 'telu-sangsih'
+  | 'lima-polos'
+  | 'lima-sangsih'
+
 type Hit = {
   active: boolean
   accent: number
@@ -548,7 +577,7 @@ type Performer = {
   id: string
   entry: number
   name: string
-  kecakPart: string
+  kecakPart: KecakPart
   role: Role
   voice: Voice
   pattern: readonly Hit[]
@@ -564,12 +593,13 @@ type Session = {
   pendingTempoBpm: number | null
   globalPulse: number
   playing: boolean
-  joinedCount: number
   performers: Performer[]
 }
 ```
 
 `active` という状態は使わない。
+
+`joinedCount` のような導出可能な値も state として保持しない。必要な場合は `performers.filter(p => p.joined).length` から算出する。
 
 状態の意味は:
 
