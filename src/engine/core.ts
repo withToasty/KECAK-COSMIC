@@ -10,7 +10,7 @@ import {
   hitsAtPulse,
   joinedCount,
 } from './session'
-import { CUE_CALL } from '../data/cuePhrase'
+import { CUE_CALL, CUE_START_GRID } from '../data/cuePhrase'
 import {
   PULSES_PER_BEAT,
   type CuePhase,
@@ -170,7 +170,7 @@ export class EngineCore {
     this.commit()
   }
 
-  /** Arm a cue (starts at the next 16-pulse boundary); toggles while armed. */
+  /** Arm a cue (starts at the next klempung-beat boundary); toggles while armed. */
   toggleCue(): void {
     if (!this.session.playing) return
     if (this.cueStart !== null) return // a cue is already running
@@ -234,7 +234,7 @@ export class EngineCore {
     if (this.cueStart !== null && pulse - this.cueStart >= CUE_LENGTH) {
       this.cueStart = null
     }
-    if (this.cueArmed && this.cueStart === null && pulse % CUE_LENGTH === 0) {
+    if (this.cueArmed && this.cueStart === null && pulse % CUE_START_GRID === 0) {
       this.cueArmed = false
       this.cueStart = pulse
     }

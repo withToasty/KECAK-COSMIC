@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { EngineCore, type PulseSink } from '../src/engine/core'
+import { CUE_CALL, CUE_RESPONSE } from '../src/data/cuePhrase'
 import { createSession, hitsAtPulse } from '../src/engine/session'
 import type { Performer } from '../src/engine/types'
 
@@ -259,7 +260,7 @@ describe('visual clock', () => {
 describe('CUE (docs/cue-model.md)', () => {
   const ids = (r: { played: { id: string }[] }) => r.played.map((x) => x.id).sort()
 
-  /** Run pulses until `n` pulses have fired; returns per-pulse results. */
+  /** Run `n` pulses; returns per-pulse results. */
   function run(pulse: ReturnType<typeof setup>['pulse'], n: number) {
     return Array.from({ length: n }, () => pulse())
   }
@@ -270,43 +271,56 @@ describe('CUE (docs/cue-model.md)', () => {
     expect(core.getSession().cue).toBe('idle')
   })
 
-  it('arms immediately but starts at the next 16-pulse boundary', () => {
+  it('arms immediately and starts at the next klempung-beat boundary', () => {
     const { core, pulse, joinAll } = setup()
     joinAll()
     core.markStarted()
-    run(pulse, 5) // pulses 0..4 done
+    run(pulse, 5) // pulses 0..4 done; next is pulse 5
     core.toggleCue()
     expect(core.getSession().cue).toBe('armed')
-    // pulses 5..15 are the normal groove (fixture rows)
-    for (let t = 5; t < 16; t++) {
+    // pulses 5, 6, 7 stay on the normal groove
+    for (let t = 5; t < 8; t++) {
       const r = pulse()
       expect(r.ev.pulse).toBe(t)
       expect(r.played).toHaveLength(FIXTURE[t].length)
+      expect(core.getSession().cue).toBe('armed')
     }
-    expect(core.getSession().cue).toBe('armed')
+    // pulse 8 is the boundary: the call begins (pung at rel 0)
+    const start = pulse()
+    expect(start.ev.pulse).toBe(8)
+    expect(ids(start)).toEqual(['klempung'])
+    expect(core.getSession().cue).toBe('call')
   })
 
-  it('call: only Juru Klempung; response: all joined voices in unison; then groove returns', () => {
+  it('arming just before a boundary starts on that boundary (max wait is one beat)', () => {
+    const { core, pulse } = setup()
+    core.markStarted()
+    run(pulse, 4) // next is pulse 4
+    core.toggleCue()
+    expect(pulse().ev.pulse).toBe(4)
+    expect(core.getSession().cue).toBe('call')
+  })
+
+  it('call: only Juru Klempung; response: all joined voices in unison on the off-beat; then groove returns', () => {
     const { core, pulse, joinAll } = setup()
     joinAll()
     core.markStarted()
     run(pulse, 4)
     core.toggleCue()
-    run(pulse, 12) // up to pulse 15
-    const cue = run(pulse, 16) // pulses 16..31
-    // call 10101000 -> JK at rel 0, 2, 4
+    const cue = run(pulse, 16) // pulses 4..19
     cue.slice(0, 8).forEach((r, rel) => {
-      expect(ids(r)).toEqual('10101000'[rel] === '1' ? ['klempung'] : [])
+      expect(ids(r)).toEqual(CUE_CALL[rel] === '1' ? ['klempung'] : [])
     })
-    expect(core.getSession().cue).toBe('response')
-    // response 10101011 -> all 8 voices at rel 8, 10, 12, 14, 15
+    expect(core.getSession().cue).toBe('response') // still the last response pulse
     cue.slice(8).forEach((r, i) => {
-      expect(ids(r)).toHaveLength('10101011'[i] === '1' ? 8 : 0)
+      expect(ids(r)).toHaveLength(CUE_RESPONSE[i] === '1' ? 8 : 0)
     })
-    // pulse 32 onwards: the groove returns (fixture row 0)
+    // The response enters on the off-beat (halfway through the beat), not on the beat.
+    expect(CUE_RESPONSE.indexOf('1') % 4).toBe(2)
+    // pulse 20 onwards: the groove returns (fixture row 4)
     const back = pulse()
-    expect(back.ev.pulse).toBe(32)
-    expect(back.played).toHaveLength(FIXTURE[0].length)
+    expect(back.ev.pulse).toBe(20)
+    expect(back.played).toHaveLength(FIXTURE[4].length)
     expect(core.getSession().cue).toBe('idle')
   })
 
@@ -324,12 +338,11 @@ describe('CUE (docs/cue-model.md)', () => {
     joinAll()
     core.setMuted('lima-sangsih', true)
     core.markStarted()
-    run(pulse, 1) // pulse 0 done
     core.toggleCue()
-    run(pulse, 15)
     const cue = run(pulse, 16)
-    expect(cue[8].played.map((x) => x.id)).not.toContain('lima-sangsih')
-    expect(cue[8].played).toHaveLength(7)
+    const hit = cue.slice(8).find((r) => r.played.length > 0)!
+    expect(hit.played.map((x) => x.id)).not.toContain('lima-sangsih')
+    expect(hit.played).toHaveLength(7)
   })
 
   it('can be cancelled while armed and is cleared by STOP', () => {
