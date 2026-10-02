@@ -8,6 +8,8 @@ import {
 } from './core'
 import type { ScheduledVocalEvent } from '../audio/beatScheduler'
 import type { PresetSet } from '../data/presetSets'
+import { CosmicCore, type CosmicSink, type CosmicTrigger } from '../cosmos/cosmicCore'
+import type { SystemId } from '../cosmos/bodies'
 
 const MASTER_HEADROOM_DB = -12
 const LIMITER_CEILING_DB = -1
@@ -116,10 +118,76 @@ class ToneSink implements EventSink {
   }
 }
 
+/**
+ * COSMIC MODE voices: synthesized, one voice family per kind of body. The pitch
+ * comes from the rank of the period (see src/cosmos/compress.ts), so no sample
+ * is stretched and the sound is a function of the data only.
+ */
+class CosmicToneSink implements CosmicSink {
+  private limiter = new Tone.Limiter(LIMITER_CEILING_DB).toDestination()
+  private master = new Tone.Gain(Tone.dbToGain(MASTER_HEADROOM_DB + 4)).connect(this.limiter)
+  private planet = new Tone.PolySynth(Tone.FMSynth, {
+    harmonicity: 2.01,
+    modulationIndex: 6,
+    envelope: { attack: 0.004, decay: 0.5, sustain: 0.1, release: 1.2 },
+    modulationEnvelope: { attack: 0.002, decay: 0.3, sustain: 0, release: 0.5 },
+  }).connect(this.master)
+  private moon = new Tone.PolySynth(Tone.Synth, {
+    oscillator: { type: 'sine' },
+    envelope: { attack: 0.01, decay: 0.25, sustain: 0.25, release: 0.9 },
+  }).connect(this.master)
+  private satellite = new Tone.PolySynth(Tone.Synth, {
+    oscillator: { type: 'triangle' },
+    envelope: { attack: 0.002, decay: 0.14, sustain: 0, release: 0.12 },
+  }).connect(this.master)
+
+  trigger(t: CosmicTrigger): void {
+    const synth =
+      t.sourceType === 'planet' ? this.planet : t.sourceType === 'moon' ? this.moon : this.satellite
+    synth.triggerAttackRelease(t.hz, t.durationSeconds, t.time, Math.min(1, t.gain))
+  }
+
+  setTempo(bpm: number, time: number): void {
+    Tone.getTransport().bpm.setValueAtTime(bpm, time)
+  }
+
+  silence(): void {
+    this.planet.releaseAll()
+    this.moon.releaseAll()
+    this.satellite.releaseAll()
+  }
+}
+
+export type EngineMode = 'kecak' | 'cosmic'
+
 export class KecakEngine {
   private sink = new ToneSink()
   readonly core = new EngineCore(this.sink)
+  private cosmicSink = new CosmicToneSink()
+  readonly cosmic = new CosmicCore(this.cosmicSink)
   private starting = false
+  private mode: EngineMode = 'kecak'
+  private modeListeners = new Set<() => void>()
+
+  getMode = (): EngineMode => this.mode
+  subscribeMode = (l: () => void): (() => void) => {
+    this.modeListeners.add(l)
+    return () => this.modeListeners.delete(l)
+  }
+
+  /** Switch between KECAK LOOP and COSMIC MODE (stops playback). */
+  setMode(mode: EngineMode): void {
+    if (mode === this.mode) return
+    this.stop()
+    this.mode = mode
+    this.modeListeners.forEach((l) => l())
+  }
+
+  isPlaying(): boolean {
+    return this.mode === 'kecak'
+      ? this.core.getSession().playing
+      : this.cosmic.getSession().playing
+  }
 
   constructor() {
     // Edits can add voices or ensemble members: create their players right away
@@ -128,22 +196,31 @@ export class KecakEngine {
   }
 
   async start(): Promise<void> {
-    if (this.core.getSession().playing || this.starting) return
+    if (this.isPlaying() || this.starting) return
     this.starting = true
     try {
       // Must run inside the user gesture that triggered START.
       await Tone.start()
-      await this.sink.load()
-      this.sink.warm(this.core.getSession().performers)
-      if (this.core.getSession().playing) return
+      const mode = this.mode
+      if (mode === 'kecak') {
+        await this.sink.load()
+        this.sink.warm(this.core.getSession().performers)
+      }
+      if (this.isPlaying() || this.mode !== mode) return
 
       const transport = Tone.getTransport()
       transport.cancel()
-      transport.bpm.value = this.core.getSession().tempoBpm
-      this.core.markStarted()
-      // One callback per global beat (quarter-note equivalent). Events inside
-      // the beat are expanded to audio times directly: no subtick timer.
-      transport.scheduleRepeat((time) => this.core.onBeat(time), '4n', 0)
+      if (mode === 'kecak') {
+        transport.bpm.value = this.core.getSession().tempoBpm
+        this.core.markStarted()
+        // One callback per global beat (quarter-note equivalent). Events inside
+        // the beat are expanded to audio times directly: no subtick timer.
+        transport.scheduleRepeat((time) => this.core.onBeat(time), '4n', 0)
+      } else {
+        transport.bpm.value = this.cosmic.getSession().tempoBpm
+        this.cosmic.markStarted()
+        transport.scheduleRepeat((time) => this.cosmic.onBeat(time), '4n', 0)
+      }
       transport.start('+0.05')
     } finally {
       this.starting = false
@@ -155,12 +232,25 @@ export class KecakEngine {
     transport.stop()
     transport.cancel()
     this.sink.silence()
+    this.cosmicSink.silence()
     this.core.markStopped()
+    this.cosmic.markStopped()
   }
 
   reset(): void {
     this.stop()
     this.core.reset()
+  }
+
+  /** COSMIC MODE: switch system (stops playback, fresh session). */
+  setCosmicSystem(id: SystemId): void {
+    this.stop()
+    this.cosmic.setSystem(id)
+  }
+
+  resetCosmic(): void {
+    this.stop()
+    this.cosmic.reset()
   }
 
   /** Switch arrangement (stops playback and returns to the initial session). */
@@ -187,7 +277,13 @@ export class KecakEngine {
   }
 
   position(): number {
-    return this.core.positionAt(this.audioNow())
+    return this.mode === 'kecak'
+      ? this.core.positionAt(this.audioNow())
+      : this.cosmic.positionAt(this.audioNow())
+  }
+
+  cosmicVisuals() {
+    return this.cosmic.drainVisual(this.audioNow())
   }
 
   dueVisuals(): ScheduledVocalEvent[] {
