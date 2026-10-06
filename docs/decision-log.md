@@ -116,3 +116,9 @@ See [Cosmic Model](./cosmic-model.md).
 - The on-screen direction is clockwise to match the rest of the app, so it is a mirror image of the real direction seen from the north. This is stated on screen.
 - The date inside the music (start date plus the real time the beats stand for) is shown. Start date and compression are stopped-only; dates are limited to 1900-2100.
 - Systems without a position source (Earth system, Jupiter's moons) keep starting in step.
+
+## Recorded samples: onset and level (M2.2)
+
+- Samples are analysed at load. Playback starts at the audible onset (first point above 10% of the peak, minus 3 ms) and each sample is trimmed towards a common RMS level (-20 dBFS, at most +/-12 dB). Measured on the first recordings: the short cak had about 37 ms and the long cak about 104 ms of lead-in (so they landed about 70 ms apart on the grid), and their levels differed from the placeholders by 8 to 13 dB.
+- Samples are still never time-stretched. A recorded long cak shorter than the event (it is about 0.4 s of audio) simply ends early at slow tempos.
+
