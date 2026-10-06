@@ -1,4 +1,5 @@
 import * as Tone from 'tone'
+import { analyze, type SampleInfo } from '../audio/sampleAnalysis'
 import { SAMPLE_FILES } from '../audio/sampleRegistry'
 import type { Performer, SampleId } from '../domain/rhythm'
 import {
@@ -15,7 +16,7 @@ const MASTER_HEADROOM_DB = -12
 const LIMITER_CEILING_DB = -1
 const LONG_FADE_OUT_S = 0.05
 
-type Bank = { players: Tone.Player[]; next: number }
+type Bank = { players: { player: Tone.Player; url: string }[]; next: number }
 
 /** Tone.js sink: sample families (round-robin takes) -> master -> limiter. */
 class ToneSink implements EventSink {
@@ -23,6 +24,8 @@ class ToneSink implements EventSink {
   private limiter: Tone.Limiter
   private banks = new Map<string, Bank>()
   private buffers = new Map<string, Tone.ToneAudioBuffer>()
+  /** Where each sample's audible part starts and how much to trim it. */
+  private info = new Map<string, SampleInfo>()
   private loading: Promise<void> | null = null
   private warned = new Set<SampleId>()
 
@@ -39,7 +42,13 @@ class ToneSink implements EventSink {
       const urls = new Set(Object.values(SAMPLE_FILES).flat())
       await Promise.all(
         [...urls].map(async (url) => {
-          this.buffers.set(url, await Tone.ToneAudioBuffer.fromUrl(url))
+          const buffer = await Tone.ToneAudioBuffer.fromUrl(url)
+          this.buffers.set(url, buffer)
+          const audio = buffer.get()
+          this.info.set(
+            url,
+            audio ? analyze(audio.getChannelData(0), audio.sampleRate) : { onsetSeconds: 0, trimDb: 0 },
+          )
         }),
       )
     })().catch((err) => {
@@ -69,7 +78,7 @@ class ToneSink implements EventSink {
           if (!buffer) throw new Error(`sample not loaded: ${url}`)
           const player = new Tone.Player(buffer).connect(this.master)
           player.fadeOut = sampleId === 'cak-long' ? LONG_FADE_OUT_S : 0
-          return player
+          return { player, url }
         }),
         next: start,
       }
@@ -97,11 +106,14 @@ class ToneSink implements EventSink {
   trigger({ event, memberIndex, time, gain }: MemberTrigger): void {
     const bank = this.bank(event.performerId, memberIndex, event.sampleId)
     if (!bank) return
-    const player = bank.players[bank.next % bank.players.length]
+    const { player, url } = bank.players[bank.next % bank.players.length]
     bank.next++
-    // `gain` already contains performer volume x accent x member share.
-    player.volume.setValueAtTime(Tone.gainToDb(gain), time)
-    player.start(time)
+    const info = this.info.get(url) ?? { onsetSeconds: 0, trimDb: 0 }
+    // `gain` already contains performer volume x accent x member share; the trim
+    // evens out the level of different recordings.
+    player.volume.setValueAtTime(Tone.gainToDb(gain) + info.trimDb, time)
+    // Begin at the audible part, so the sound lands on the grid time itself.
+    player.start(time, info.onsetSeconds)
     // Sustained voice: cut / release at the event duration on the audio clock.
     // Short samples play out naturally and are never time-stretched.
     if (event.sampleId === 'cak-long') {
@@ -114,7 +126,7 @@ class ToneSink implements EventSink {
   }
 
   silence(): void {
-    for (const bank of this.banks.values()) bank.players.forEach((p) => p.stop())
+    for (const bank of this.banks.values()) bank.players.forEach(({ player }) => player.stop())
   }
 }
 
