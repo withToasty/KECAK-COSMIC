@@ -49,7 +49,7 @@ export const CUES: Record<CueKind, CueDef> = {
     ],
     response: RESPONSE,
   },
-  // Transition: everything stops except a soft pung, one full beat of silence,
+  // Conductor-controlled transition: everything stops except a soft pung, one full beat of silence,
   // then the same unison answer.
   break: {
     label: 'BREAK',
