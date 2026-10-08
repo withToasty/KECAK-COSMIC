@@ -76,7 +76,11 @@ class ToneSink implements EventSink {
         players: urls.map((url) => {
           const buffer = this.buffers.get(url)
           if (!buffer) throw new Error(`sample not loaded: ${url}`)
-          const player = new Tone.Player(buffer).connect(this.master)
+          const pan = Math.max(-0.8, Math.min(0.8, ((member * 0.61803398875 + performerId.length * 0.137) % 1) * 1.6 - 0.8))
+          const spatial = new Tone.Panner(pan).connect(this.master)
+          const player = new Tone.Player(buffer).connect(spatial)
+          // Stable, subtle timbre differences between virtual singers.
+          player.playbackRate = 0.965 + ((member * 0.371 + performerId.length * 0.117) % 1) * 0.07
           player.fadeOut = sampleId === 'cak-long' ? LONG_FADE_OUT_S : 0
           return { player, url }
         }),
