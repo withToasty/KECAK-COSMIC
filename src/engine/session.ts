@@ -17,7 +17,7 @@ export function createPerformer(preset: KecakPreset): Performer {
     role: preset.role,
     pattern: presetPattern(preset),
     rotationBeats: 0,
-    joined: preset.entry === 1,
+    joined: false,
     muted: false,
     solo: false,
     volume: preset.defaultVolume,
